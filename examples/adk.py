@@ -54,4 +54,4 @@ app = FastAPI(title="ADK Middleware Basic Chat")
 add_adk_fastapi_endpoint(app, chat_agent, path="/agent")
 
 # Start Linkos Gateway (Magic Mode)
-Gateway(agent=chat_agent)
+# Gateway(agent=chat_agent)

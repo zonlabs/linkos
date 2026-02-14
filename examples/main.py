@@ -30,9 +30,20 @@ langgraph_agent = LangGraphAGUIAgent(
     )
 
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"📥 Agent received: {request.method} {request.url.path}")
+    try:
+        response = await call_next(request)
+        print(f"📤 Agent response status: {response.status_code}")
+        return response
+    except Exception as e:
+        print(f"❌ Agent error: {e}")
+        raise
+
 add_langgraph_fastapi_endpoint(
     app=app, agent=langgraph_agent, path="/agent"
 )
 
 # Start Linkos Gateway (Magic Mode: auto-starts matching env/config)
-Gateway(agent=langgraph_agent)
+# Gateway(agent=langgraph_agent)

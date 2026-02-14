@@ -1,0 +1,26 @@
+{
+    "name": "@linkos/core",
+    "version": "0.1.0",
+    "description": "Core gateway and routing for Linkos",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "clean": "rm -rf dist"
+    },
+    "dependencies": {
+        "@ag-ui/client": "^0.0.45",
+        "@linkos/types": "workspace:*"
+    },
+    "devDependencies": {
+        "typescript": "^5.3.0",
+        "@types/node": "^20.0.0"
+    }
+}
