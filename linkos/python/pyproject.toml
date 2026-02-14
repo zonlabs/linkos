@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-linkos = "linkos.cli:main"
+linkos = "src.cli:main"
 
 [build-system]
 requires = ["hatchling"]
