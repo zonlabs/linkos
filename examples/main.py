@@ -46,4 +46,4 @@ add_langgraph_fastapi_endpoint(
 )
 
 # Start Linkos Gateway (Magic Mode: auto-starts matching env/config)
-# Gateway(agent=langgraph_agent)
+Gateway(agent=langgraph_agent)

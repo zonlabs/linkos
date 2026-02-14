@@ -46,15 +46,19 @@ class MessageRouter:
         
         # Process with agent
         try:
-            # 1. Check for AG-UI Protocol run() method (preferred for wrappers)
-            if hasattr(self.agent, 'run') and callable(self.agent.run):
+            # 1. Check for compiled LangGraph (bypassing buggy AG-UI wrapper)
+            if hasattr(self.agent, 'graph') and hasattr(self.agent.graph, 'astream_events'):
+                 response = await self._process_langgraph_run(message, session.history)
+
+            # 2. Check for AG-UI Protocol run() method (preferred for wrappers)
+            elif hasattr(self.agent, 'run') and callable(self.agent.run):
                 response = await self._process_agui_run(message, session.history)
             
-            # 2. Check for simple process_message (fallback)
+            # 3. Check for simple process_message (fallback)
             elif hasattr(self.agent, 'process_message'):
                 response = await self.agent.process_message(message, context)
             
-            # 3. Simple callable
+            # 4. Simple callable
             elif callable(self.agent):
                 if asyncio.iscoroutinefunction(self.agent):
                     response = await self.agent(message.content)
@@ -83,25 +87,17 @@ class MessageRouter:
     async def _process_agui_run(self, message: UnifiedMessage, history: List[dict]) -> str:
         """Bridge UnifiedMessage to AG-UI run() interface with full history."""
         
-        # Map Linkos history to AG-UI messages
-        ag_messages = []
-        for msg in history:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            msg_id = msg.get("id", str(uuid.uuid4()))
-            
-            if role == "user":
-                ag_messages.append(UserMessage(id=msg_id, content=content))
-            elif role == "assistant":
-                ag_messages.append(AssistantMessage(id=msg_id, content=content))
-            elif role == "system":
-                ag_messages.append(SystemMessage(id=msg_id, content=content))
+        # Only send the current message to the agent, as LangGraph manages state via thread_id
+        current_usermsg = UserMessage(
+            id=message.id,
+            content=message.content
+        )
         
         # Construct AG-UI input
         ag_input = RunAgentInput(
             thread_id=message.session_id,
             run_id=str(uuid.uuid4()),
-            messages=ag_messages,
+            messages=[current_usermsg],
             state={},
             tools=[],
             context=[],
@@ -141,3 +137,43 @@ class MessageRouter:
             return getattr(event, "delta", "")
         
         return ""
+
+    async def _process_langgraph_run(self, message: UnifiedMessage, history: List[dict]) -> str:
+        """Process message directly with LangGraph compiled graph."""
+        try:
+            from langchain_core.messages import HumanMessage, AIMessage
+        except ImportError:
+            logger.error("LangChain not installed, cannot use LangGraph directly.")
+            return "❌ Error: LangChain not installed."
+
+        # Create HumanMessage with ID
+        # Note: LangGraph might ignore ID on input, but it's good practice.
+        human_msg = HumanMessage(content=message.content, id=message.id)
+        
+        # Prepare configuration with thread_id
+        config = {"configurable": {"thread_id": message.session_id}}
+        
+        response_text = ""
+        
+        try:
+            # Stream events from the graph
+            # We use astream_events to capture token-by-token output from the model
+            async for event in self.agent.graph.astream_events(
+                {"messages": [human_msg]}, 
+                config, 
+                version="v2"
+            ):
+                event_type = event.get("event")
+                # Capture chat model stream output
+                if event_type == "on_chat_model_stream":
+                    data = event.get("data", {})
+                    chunk = data.get("chunk")
+                    if chunk:
+                        content = chunk.content
+                        if content:
+                            response_text += content
+        except Exception as e:
+            logger.error(f"LangGraph execution error: {e}", exc_info=True)
+            return f"❌ Error executing graph: {str(e)}"
+
+        return response_text or "⚠️ Agent produced no response."

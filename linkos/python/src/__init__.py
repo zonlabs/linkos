@@ -8,10 +8,10 @@ via WebSocket connections.
 __version__ = "0.1.0"
 
 # Core runtime - Import directly from modules to avoid circularity with core/__init__.py
-from linkos.core.gateway import Gateway
+from .core.gateway import Gateway
 
-from linkos.models.message import UnifiedMessage, Platform, MessageType
-from linkos.models.session import Session, SessionState
+from .models.message import UnifiedMessage, Platform, MessageType
+from .models.session import Session, SessionState
 
 __all__ = [
     "Gateway",

@@ -18,4 +18,4 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-linkos = { path = "../", editable = true }
+linkos = { path = "../linkos/python/", editable = true }
