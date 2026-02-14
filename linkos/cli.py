@@ -3,7 +3,6 @@
 import click
 import asyncio
 import logging
-from linkos.gateway import Gateway
 
 # Configure logging
 logging.basicConfig(
@@ -31,17 +30,16 @@ def gateway(config):
     """Start the messaging gateway.
     
     Connects to configured platforms via WebSocket and routes messages to AI agent.
-    
-    Example:
-    
-        linkos gateway
-        linkos gateway --config config.toml
     """
+    # Import Gateway here to prevent circular imports with linkos.__init__
+    from linkos.core.gateway import Gateway
+    
     click.echo("🚀 Starting Linkos gateway...")
     
     gw = Gateway(config_path=config)
     
     try:
+        # If no agent provided, it will try to init from config
         asyncio.run(gw.start())
     except KeyboardInterrupt:
         click.echo("\n👋 Shutting down gateway...")
@@ -74,20 +72,11 @@ app_token = "xapp-..."
 # Use Socket Mode
 
 [agent]
-# Type: "agui" for AG-UI protocol agents, "mock" for testing
-type = "agui"
+# Type: "local" for in-process, "agui" for remote, "mock" for testing
+type = "local"
 
-# AG-UI agent endpoint
-endpoint = "http://localhost:8000/agent"
-
-# Optional: Authentication headers
-# [agent.headers]
-# Authorization = "Bearer YOUR_TOKEN"
-
-# Example with existing ADK agent:
-# 1. Start your ADK agent: cd mcp-ts/examples/agents/agents/python && python -m uvicorn adk:app
-# 2. Set endpoint above to: http://localhost:8000/agent
-# 3. Run linkos gateway
+# Local agent: import path to agent instance
+instance = "examples.simple_agent:agent"
 '''
     
     with open("config.toml", "w") as f:
