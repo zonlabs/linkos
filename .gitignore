@@ -1,0 +1,14 @@
+# Byte-compiled / optimized / DLL files
+*.pyc
+*.pyo
+*.pyd
+
+# Python cache directory
+__pycache__/
+
+# Virtual environments
+venv/
+.env/
+
+# Mac
+.DS_Store
