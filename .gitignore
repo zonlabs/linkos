@@ -9,6 +9,10 @@ __pycache__/
 # Virtual environments
 venv/
 .env/
+.env
+
+# Configuration
+config.toml
 
 # Mac
 .DS_Store

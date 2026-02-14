@@ -1,125 +1,54 @@
 # Linkos
 
-**Multi-platform messaging gateway for AI agents** - Connect your agents to messaging platforms like WhatsApp, Telegram, Discord, and Slack.
+**Multi-platform messaging gateway for AI agents.** 
+
+Connect agents to Telegram and Discord with zero-boilerplate. No webhooks or public URLs required.
 
 ## 🚀 Quick Start
 
-### 1. Install with uv
-
+### 1. Install
 ```bash
-cd linkos
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -e .
 ```
 
-### 2. Initialize Configuration
-
+### 2. Configure Platforms
+Linkos uses environment variables for zero-config startup.
 ```bash
-linkos init
+export TELEGRAM_TOKEN="your_token"
+export DISCORD_TOKEN="your_token"
 ```
 
-This creates `config.toml`. Edit it and add your platform tokens:
+### 3. Usage
+Add one line to your existing agent script. Linkos detects the environment (FastAPI or standalone) and runs in the background.
 
-```toml
-[telegram]
-enabled = true
-token = "YOUR_BOT_TOKEN"  # Get from @BotFather
+```python
+from linkos import Gateway
+from my_agent import my_ai_agent
 
-[discord]
-enabled = true
-token = "YOUR_BOT_TOKEN"  # Get from Discord Developer Portal
+# Magic Mode: starts clients and history management automatically
+Gateway(agent=my_ai_agent)
 ```
 
-### 3. Run the Gateway
+## 📦 Core Architecture
 
-```bash
-linkos gateway
-```
-
-That's it! The gateway will connect to your platforms via WebSocket and route messages to the AI agent.
-
-## 📦 Architecture
-
-```
-Platform (WebSocket) → Client → UnifiedMessage → Router → AI Agent → Response
-```
-
-**No webhooks. No public URL needed. Just works.**
+- **Magic Gateway**: Auto-detects running event loops (FastAPI/Uvicorn) or starts a background thread.
+- **AG-UI Bridge**: Standardized interface for `LangGraph`, `ADK`, and custom agents via the `run()` or `process_message()` methods.
+- **Smart History**: Persists full message context to keep multi-turn agents in sync.
 
 ## 🔌 Supported Platforms
 
-| Platform | Status | Library |
-|----------|--------|---------|
-| Telegram | ✅ Ready | python-telegram-bot (long polling) |
-| Discord | ✅ Ready | discord.py (WebSocket gateway) |
-| Slack | 🚧 Planned | slack-bolt (Socket Mode) |
-| WhatsApp | 🚧 Planned | whatsapp-web.js bridge |
+| Platform | Library |
+|----------|---------|
+| **Telegram** | `python-telegram-bot` (long polling) |
+| **Discord** | `discord.py` (WebSocket) |
+| **Slack** | Coming Soon |
 
-## 💡 Features
+## 🤖 Agent Interfaces
 
-- **WebSocket-based** - No public IP or webhook URLs required
-- **Unified message format** - Platform-agnostic AI agent
-- **Session management** - Track conversations across platforms
-- **Pluggable AI agents** - Easy to replace mock agent with real AI
-- **Modern Python** - Uses `pyproject.toml` and `uv`
-
-## 🛠️ Development
-
-```bash
-# Install with dev dependencies
-uv pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Format code
-black linkos/
-ruff check linkos/
-```
-
-## 📝 Usage as Library
-
-```python
-from linkos import UnifiedMessage, Platform
-from linkos.services import SessionManager, MessageRouter, MockAgent
-
-# Initialize
-session_manager = SessionManager()
-agent = MockAgent()
-router = MessageRouter(session_manager, agent)
-
-# Process a message
-message = UnifiedMessage(
-    id="msg_1",
-    platform=Platform.TELEGRAM,
-    user_id="12345",
-    session_id="telegram:12345",
-    content="Hello!"
-)
-
-response = await router.route_message(message)
-print(response)
-```
-
-## 🤖 Replace Mock Agent
-
-```python
-# linkos/services/agent.py
-from openai import AsyncOpenAI
-
-class OpenAIAgent:
-    def __init__(self, api_key: str):
-        self.client = AsyncOpenAI(api_key=api_key)
-    
-    async def process_message(self, message, context):
-        response = await self.client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": message.content}]
-        )
-        return response.choices[0].message.content
-```
+Linkos supports three ways to talk to your agent:
+1. **AG-UI Protocol**: `agent.run(input)` (Streaming events)
+2. **Simple Class**: `agent.process_message(message, context)`
+3. **Callable**: `async def my_agent(text: str) -> str`
 
 ## 📄 License
-
 MIT

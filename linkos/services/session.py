@@ -1,7 +1,7 @@
 """Session management service (reused from previous implementation)."""
 
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 from linkos.models import Session, Platform, SessionState
 
@@ -39,10 +39,10 @@ class SessionManager:
         self._sessions[session_id] = session
         return session
     
-    def update_session(self, session_id: str, message_id: str) -> None:
+    def update_session(self, session_id: str, message: Any) -> None:
         """Update session with new message activity."""
         if session_id in self._sessions:
-            self._sessions[session_id].update_activity(message_id)
+            self._sessions[session_id].update_activity(message)
     
     def get_session_context(self, session_id: str) -> dict:
         """Get session context data."""
