@@ -5,6 +5,7 @@ import asyncio
 import json
 import uuid
 from typing import Optional, Any, List, TYPE_CHECKING
+from collections.abc import Callable, Awaitable
 
 from linkos.models import UnifiedMessage
 
@@ -31,8 +32,14 @@ class MessageRouter:
         self.session_manager = session_manager
         self.agent = agent
     
-    async def route_message(self, message: UnifiedMessage) -> str:
-        """Route message through pipeline and return response."""
+    async def route_message(self, message: UnifiedMessage, on_token: Optional[Callable[[str], Awaitable[None]]] = None) -> str:
+        """
+        Route message through pipeline and return response.
+        
+        Args:
+            message: The message to route.
+            on_token: Optional async callback for streaming tokens.
+        """
         # Get or create session
         session = self.session_manager.get_or_create_session(
             platform=message.platform, user_id=message.user_id
@@ -45,20 +52,22 @@ class MessageRouter:
         context = self.session_manager.get_session_context(session.session_id)
         
         # Process with agent
+        # Process with agent
         try:
-            # 1. Check for compiled LangGraph (bypassing buggy AG-UI wrapper)
+            # Check for compiled LangGraph (bypassing buggy AG-UI wrapper)
             if hasattr(self.agent, 'graph') and hasattr(self.agent.graph, 'astream_events'):
-                 response = await self._process_langgraph_run(message, session.history)
+                 response = await self._process_langgraph_run(message, session.history, on_token)
 
-            # 2. Check for AG-UI Protocol run() method (preferred for wrappers)
+            # Check for AG-UI Protocol run() method
             elif hasattr(self.agent, 'run') and callable(self.agent.run):
-                response = await self._process_agui_run(message, session.history)
+                response = await self._process_agui_run(message, session.history, on_token)
             
-            # 3. Check for simple process_message (fallback)
+            # Check for simple process_message (fallback)
             elif hasattr(self.agent, 'process_message'):
+                # Note: simple process_message doesn't support streaming callback easily unless modified
                 response = await self.agent.process_message(message, context)
             
-            # 4. Simple callable
+            # Check for simple callable
             elif callable(self.agent):
                 if asyncio.iscoroutinefunction(self.agent):
                     response = await self.agent(message.content)
@@ -84,7 +93,7 @@ class MessageRouter:
             logger.error(f"Agent error: {e}", exc_info=True)
             return f"❌ Error: {str(e)}"
 
-    async def _process_agui_run(self, message: UnifiedMessage, history: List[dict]) -> str:
+    async def _process_agui_run(self, message: UnifiedMessage, history: List[dict], on_token: Optional[Callable[[str], Awaitable[None]]] = None) -> str:
         """Bridge UnifiedMessage to AG-UI run() interface with full history."""
         
         # Only send the current message to the agent, as LangGraph manages state via thread_id
@@ -111,14 +120,24 @@ class MessageRouter:
         
         if hasattr(result, '__aiter__'):
             async for event in result:
-                response_text += self._parse_agui_event(event)
+                delta = self._parse_agui_event(event)
+                if delta:
+                    response_text += delta
+                    if on_token:
+                        await on_token(delta)
         elif asyncio.iscoroutine(result):
             res = await result
             if isinstance(res, str):
                 response_text = res
+                if on_token:
+                    await on_token(res)
             else:
                 for event in res:
-                    response_text += self._parse_agui_event(event)
+                    delta = self._parse_agui_event(event)
+                    if delta:
+                        response_text += delta
+                        if on_token:
+                            await on_token(delta)
 
         return response_text or "⚠️ Agent produced no response."
 
@@ -138,42 +157,48 @@ class MessageRouter:
         
         return ""
 
-    async def _process_langgraph_run(self, message: UnifiedMessage, history: List[dict]) -> str:
-        """Process message directly with LangGraph compiled graph."""
+    async def _process_langgraph_run(self, message: UnifiedMessage, history: List[dict], on_token: Optional[Callable[[str], Awaitable[None]]] = None) -> str:
+        """
+        Process message directly with Linkos native LangGraph support.
+        
+        This bypasses the AG-UI wrapper to provide more robust state management
+        and direct access to the graph's streaming capabilities.
+        """
         try:
-            from langchain_core.messages import HumanMessage, AIMessage
+            from langchain_core.messages import HumanMessage
         except ImportError:
             logger.error("LangChain not installed, cannot use LangGraph directly.")
-            return "❌ Error: LangChain not installed."
+            return "❌ Error: LangChain dependencies not found."
 
-        # Create HumanMessage with ID
-        # Note: LangGraph might ignore ID on input, but it's good practice.
+        # Convert Linkos message to LangChain HumanMessage
         human_msg = HumanMessage(content=message.content, id=message.id)
         
-        # Prepare configuration with thread_id
+        # Configure the run with the session ID as thread_id for state persistence
         config = {"configurable": {"thread_id": message.session_id}}
         
         response_text = ""
         
         try:
-            # Stream events from the graph
-            # We use astream_events to capture token-by-token output from the model
+            # Stream events using the v2 API for token-by-token output
             async for event in self.agent.graph.astream_events(
                 {"messages": [human_msg]}, 
                 config, 
                 version="v2"
             ):
                 event_type = event.get("event")
-                # Capture chat model stream output
+                
+                # Filter for chat model stream events to capture generated text
                 if event_type == "on_chat_model_stream":
                     data = event.get("data", {})
                     chunk = data.get("chunk")
-                    if chunk:
+                    if chunk and chunk.content:
                         content = chunk.content
-                        if content:
-                            response_text += content
+                        response_text += content
+                        if on_token:
+                            await on_token(content)
+                        
         except Exception as e:
             logger.error(f"LangGraph execution error: {e}", exc_info=True)
-            return f"❌ Error executing graph: {str(e)}"
+            return f"❌ Error executing agent: {str(e)}"
 
         return response_text or "⚠️ Agent produced no response."

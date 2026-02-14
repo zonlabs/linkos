@@ -58,6 +58,7 @@ class Gateway:
         
         # Platform clients
         self.clients = []
+        self._daemon_task = None
         self._init_clients()
         
         # Magic mode: if agent is provided, auto-start in background
@@ -222,3 +223,10 @@ class Gateway:
         logger.info("👋 Stopping clients...")
         tasks = [client.stop() for client in self.clients]
         await asyncio.gather(*tasks)
+        
+        # Await the main background task to ensure clean exit
+        if self._daemon_task and not self._daemon_task.done():
+            try:
+                await self._daemon_task
+            except asyncio.CancelledError:
+                pass
