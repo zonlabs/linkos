@@ -7,10 +7,15 @@ via WebSocket connections.
 
 __version__ = "0.1.0"
 
+# Core runtime
+from linkos.core import cli, Gateway
+
 from linkos.models.message import UnifiedMessage, Platform, MessageType
 from linkos.models.session import Session, SessionState
 
 __all__ = [
+    "cli",
+    "Gateway",
     "UnifiedMessage",
     "Platform",
     "MessageType",
