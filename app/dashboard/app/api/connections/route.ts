@@ -11,11 +11,13 @@ export async function GET() {
     }
 
     try {
-        // Fetch all connections directly from the Hub service
-        const connections = await listHubConnections();
+        console.log(`🔍 [Dashboard API] Fetching connections for user.id: ${user.id}`);
+        // Fetch users connections via the Hub service (which now queries Supabase internally)
+        const connections = await listHubConnections(user.id);
+        console.log(`✅ [Dashboard API] Successfully fetched ${connections.length} connections from Hub`);
         return NextResponse.json(connections);
     } catch (error: any) {
-        console.error("[Dashboard API] GET error:", error.message);
+        console.error("❌ [Dashboard API] GET error:", error.message);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
@@ -30,25 +32,26 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { platform, token, agent_url } = body;
+        const { platform, token, agentUrl, connectionId, userId } = body;
 
-        // Generate a clean ID for the Hub
-        const connectionId = `gw-${Math.random().toString(36).substr(2, 9)}`;
+        // Generate or use provided ID
+        const finalId = connectionId || `gw-${Math.random().toString(36).substr(2, 9)}`;
 
         // Trigger the Hub service directly
         const connection = await createHubConnection({
-            connection_id: connectionId,
+            connectionId: finalId,
             platform,
             token,
-            agent_url,
+            agentUrl,
+            userId,
         });
 
         // The Hub now returns ConnectionMetadata, which we pass back to the UI
         return NextResponse.json({
-            id: connectionId,
-            platform,
-            agent_url,
-            status: "active",
+            id: connection.id,
+            platform: connection.platform || platform,
+            agentUrl: connection.agentUrl || agentUrl,
+            status: connection.status || "active",
             created_at: new Date().toISOString()
         });
     } catch (error: any) {

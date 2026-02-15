@@ -8,6 +8,7 @@ from typing import Optional, Any
 
 from linkos.clients.telegram import TelegramClient
 from linkos.clients.discord import DiscordClient
+from linkos.clients.whatsapp import WhatsAppClient
 from linkos.services.session import SessionManager
 from linkos.services.agent import MockAgent
 from linkos.services.router import MessageRouter
@@ -73,6 +74,10 @@ class Gateway:
         config = {
             "telegram": {"enabled": False, "token": os.environ.get("TELEGRAM_TOKEN", "")},
             "discord": {"enabled": False, "token": os.environ.get("DISCORD_TOKEN", "")},
+            "whatsapp": {
+                "enabled": False, 
+                "bridge_url": os.environ.get("WHATSAPP_BRIDGE_URL", "ws://localhost:6001"),
+            },
             "slack": {"enabled": False, "bot_token": "", "app_token": ""},
         }
         
@@ -81,6 +86,8 @@ class Gateway:
             config["telegram"]["enabled"] = True
         if config["discord"]["token"]:
             config["discord"]["enabled"] = True
+        if os.environ.get("ENABLE_WHATSAPP"):
+            config["whatsapp"]["enabled"] = True
             
         # Use tomllib for Python 3.11+, tomli for older versions
         if sys.version_info >= (3, 11):
@@ -99,7 +106,7 @@ class Gateway:
                 with open(config_file, "rb") as f:
                     file_config = tomllib.load(f)
                     # Merge file_config into config
-                    for key in ["telegram", "discord", "slack"]:
+                    for key in ["telegram", "discord", "whatsapp", "slack"]:
                         if key in file_config:
                             config[key].update(file_config[key])
                 logger.info(f"✅ Loaded config from {config_file}")
@@ -181,6 +188,15 @@ class Gateway:
                 discord_client = DiscordClient(token, self.router)
                 self.clients.append(discord_client)
                 logger.info("✅ Discord client initialized")
+
+        # WhatsApp
+        if self.config["whatsapp"].get("enabled"):
+            bridge_url = self.config["whatsapp"].get("bridge_url")
+            
+            if bridge_url:
+                wa_client = WhatsAppClient(bridge_url, self.router)
+                self.clients.append(wa_client)
+                logger.info(f"✅ WhatsApp client initialized (Bridge: {bridge_url})")
     
     def start(self):
         """

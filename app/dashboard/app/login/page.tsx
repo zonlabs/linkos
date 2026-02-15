@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Command } from "lucide-react"
+import { Loader2 } from "lucide-react"
+import { Logo } from "@/components/ui/logo"
 
 export default function LoginPage() {
     const [email, setEmail] = useState("")
@@ -48,12 +49,8 @@ export default function LoginPage() {
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-black p-4 lg:p-8">
             <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-                <div className="flex flex-col space-y-2 text-center">
-                    <div className="flex justify-center mb-4">
-                        <div className="rounded-lg bg-zinc-900 p-2 border border-zinc-800">
-                            <Command className="h-6 w-6 text-white" />
-                        </div>
-                    </div>
+                <div className="flex flex-col space-y-2 text-center items-center">
+                    <Logo size="lg" showText={false} className="mb-4" />
                     <h1 className="text-2xl font-semibold tracking-tight text-white">Welcome back</h1>
                     <p className="text-sm text-zinc-400">
                         Enter your credentials or use social login

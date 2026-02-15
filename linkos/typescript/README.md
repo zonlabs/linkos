@@ -6,7 +6,7 @@ TypeScript implementation of LinkOS.
 
 ```mermaid
 graph LR
-    A[Telegram Bot<br/>(Telegraf)] --> B[Linkos Hub<br/>@linkos/core]
+    A[Telegram Bot<br/>(Telegraf)] --> B[Linkos Hub<br/>@link-os/core]
     B --> C[AG-UI Agent<br/>@ag-ui/client]
 ```
 ## Quick Start
@@ -19,15 +19,15 @@ pnpm install
 pnpm build
 
 # Run Hub in development mode
-pnpm --filter @linkos/hub dev
+pnpm --filter @link-os/hub dev
 ```
 
 ## Packages
 
-- **@linkos/core** - Core gateway and routing logic
-- **@linkos/telegram** - Telegram platform client
-- **@linkos/types** - Shared TypeScript types
-- **@linkos/hub** - Production Hub service
+- **@link-os/core** - Core gateway and routing logic
+- **@link-os/whatsapp** - WhatsApp platform client
+- **@link-os/telegram** - Telegram platform client
+- **@link-os/types** - Shared TypeScript types
 
 
 ## Configuration

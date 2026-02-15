@@ -1,6 +1,6 @@
 import { Telegraf, type Context } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import type { PlatformClient, UnifiedMessage } from '@linkos/types';
+import type { PlatformClient, UnifiedMessage } from '@link-os/types';
 
 export interface TelegramClientConfig {
     token: string;
@@ -14,6 +14,7 @@ export class TelegramClient implements PlatformClient {
     readonly platform = 'telegram' as const;
     private bot: Telegraf;
     private messageHandler?: (message: UnifiedMessage) => Promise<void>;
+    private statusHandler?: (status: { type: string; data?: any }) => void;
     private sessionIdPrefix: string;
 
     constructor(config: TelegramClientConfig) {
@@ -55,9 +56,11 @@ export class TelegramClient implements PlatformClient {
         });
     }
 
-    on(event: 'message', handler: (message: UnifiedMessage) => Promise<void>): void {
+    on(event: 'message' | 'status', handler: any): void {
         if (event === 'message') {
             this.messageHandler = handler;
+        } else if (event === 'status') {
+            this.statusHandler = handler;
         }
     }
 
@@ -66,6 +69,9 @@ export class TelegramClient implements PlatformClient {
         // Launch in background without blocking
         this.bot.launch().then(() => {
             console.log('✅ Telegram client connected');
+            if (this.statusHandler) {
+                this.statusHandler({ type: 'connected' });
+            }
         }).catch((err) => {
             console.error('❌ Failed to connect Telegram client:', err);
         });

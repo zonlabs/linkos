@@ -26,7 +26,7 @@ wheels = [
 
 [[package]]
 name = "ag-ui-langgraph"
-version = "0.0.23"
+version = "0.0.25"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ag-ui-protocol" },
@@ -35,9 +35,9 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/76/beca247c88713c9ecca28d229419a1cb81644c0c7e1a4d9872baf4ad7900/ag_ui_langgraph-0.0.23.tar.gz", hash = "sha256:6f44958b996e7be4ca77533932857369e5ac038bfd60281b6a9fc28916d2af4e", size = 13032, upload-time = "2026-01-09T15:51:09.735Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/c6/48bf48fb20eb128ca87058ba7cc22785c272ca5d162236f534a8fdb4b8cb/ag_ui_langgraph-0.0.25.tar.gz", hash = "sha256:ee100631fe57026d331f695c939826d470f3f9564e0956ff46be391f87d9498c", size = 13198, upload-time = "2026-02-10T16:07:11.484Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/0f/5f2d5bc4582ae3e9d7aab3a2db77827ab7bd2cc77381892deb58fd4fd00f/ag_ui_langgraph-0.0.23-py3-none-any.whl", hash = "sha256:d1911eb6cf28749ebc17c176de7d5bb134cc14b73cc5764005fc38ba6b76c2fb", size = 14760, upload-time = "2026-01-09T15:51:08.608Z" },
+    { url = "https://files.pythonhosted.org/packages/25/d5/041803505ec2258790b82d45090a3e38aa5f32a60026f97718822c9bc86e/ag_ui_langgraph-0.0.25-py3-none-any.whl", hash = "sha256:a48cde3723578c32a6610e5f5e2bcf1f31ddb711ec1dd1b2c6486a7a64abe1cd", size = 14943, upload-time = "2026-02-10T16:07:10.561Z" },
 ]
 
 [package.optional-dependencies]
@@ -1634,6 +1634,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "python-telegram-bot" },
     { name = "slack-bolt" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -1651,6 +1652,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2.0" },
     { name = "slack-bolt", specifier = ">=1.18.0" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.0" },
+    { name = "websockets", specifier = ">=12.0" },
 ]
 provides-extras = ["dev"]
 
@@ -2445,7 +2447,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ag-ui-adk", specifier = ">=0.4.2" },
-    { name = "ag-ui-langgraph", specifier = ">=0.0.23" },
+    { name = "ag-ui-langgraph", specifier = ">=0.0.25" },
     { name = "copilotkit", specifier = ">=0.1.76" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fastapi", specifier = ">=0.115.14" },

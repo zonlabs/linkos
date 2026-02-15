@@ -1,5 +1,5 @@
 {
-    "name": "@linkos/core",
+    "name": "@link-os/core",
     "version": "0.1.0",
     "description": "Core gateway and routing for Linkos",
     "main": "./dist/index.js",
@@ -13,11 +13,12 @@
     "scripts": {
         "build": "tsc",
         "dev": "tsc --watch",
-        "clean": "rm -rf dist"
+        "clean": "rm -rf dist",
+        "prepublishOnly": "pnpm build"
     },
     "dependencies": {
         "@ag-ui/client": "^0.0.45",
-        "@linkos/types": "workspace:*"
+        "@link-os/types": "workspace:*"
     },
     "devDependencies": {
         "typescript": "^5.3.0",

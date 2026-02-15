@@ -3,32 +3,44 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+    variable: "--font-geist-sans",
+    subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+    variable: "--font-geist-mono",
+    subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Linkos | The AI Agent Gateway",
-  description: "Connect your AI agents to Telegram, Discord, and Slack with the AG-UI protocol.",
+    title: "Linkos | The AI Agent Gateway",
+    description: "Connect your AI agents to Telegram, Discord, and Slack with the AG-UI protocol.",
 };
 
+import { ThemeProvider } from "@/components/theme-provider";
+
+import { Toaster } from "@/components/ui/sonner";
+
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode;
 }>) {
-  return (
-    <html lang="en" className="dark">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
-  );
+    return (
+        <html lang="en" suppressHydrationWarning>
+            <body
+                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+            >
+                <ThemeProvider
+                    attribute="class"
+                    defaultTheme="dark"
+                    enableSystem
+                    disableTransitionOnChange
+                >
+                    {children}
+                    <Toaster richColors position="top-center" />
+                </ThemeProvider>
+            </body>
+        </html>
+    );
 }

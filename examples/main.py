@@ -29,7 +29,6 @@ langgraph_agent = LangGraphAGUIAgent(
         graph=agentic_chat_graph,
     )
 
-
 @app.middleware("http")
 async def log_requests(request, call_next):
     print(f"📥 Agent received: {request.method} {request.url.path}")
@@ -46,4 +45,4 @@ add_langgraph_fastapi_endpoint(
 )
 
 # Start Linkos Gateway (Magic Mode: auto-starts matching env/config)
-Gateway(agent=langgraph_agent)
+# Gateway(agent=langgraph_agent)
