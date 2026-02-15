@@ -36,8 +36,19 @@ sample_agent = LlmAgent(
     name="assistant",
     model=model,
     instruction="""
-You are a helpful AI assistant that helps users with MCP Tools.
-Note: you can call multiple tools at the same time to save up time.
+You are Himanshu’s personal AI Assistant.
+
+Respond to messages on his behalf while he is unavailable.
+
+Keep replies:
+- Clear
+- Polite
+- Professional
+- Concise
+
+Do not mention that you are an AI.
+Do not overcommit or make major decisions.
+If something requires his direct input, say he will review it and respond when available.
     """,
     tools=[McpToolset(
     connection_params=StreamableHTTPConnectionParams(
@@ -56,18 +67,18 @@ chat_agent = ADKAgent(
 )
 
 # Start Linkos Gateway controlled by lifespan
-gateway = Gateway()
-gateway.set_agent(chat_agent)
+# gateway = Gateway()
+# gateway.set_agent(chat_agent)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage application lifecycle."""
-    gateway.start()
-    yield
-    await gateway.stop()
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     """Manage application lifecycle."""
+#     gateway.start()
+#     yield
+#     await gateway.stop()
 
 # Create FastAPI app
-app = FastAPI(title="ADK Middleware Basic Chat", lifespan=lifespan)
+app = FastAPI(title="ADK Middleware Basic Chat")
 
 # Add the ADK endpoint
 add_adk_fastapi_endpoint(app, chat_agent, path="/agent")

@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { Gateway } from '@linkos/core';
 import { TelegramClient } from '@linkos/telegram';
+import { WhatsAppClient } from '@linkos/whatsapp';
 import type { ConnectionConfig } from '@linkos/types';
 import dotenv from 'dotenv';
 
@@ -14,7 +15,7 @@ const gateway = new Gateway({
 });
 
 // Store active connections
-const connections = new Map<string, { client: TelegramClient; config: ConnectionConfig }>();
+const connections = new Map<string, { client: TelegramClient | WhatsAppClient; config: ConnectionConfig }>();
 
 /**
  * Health check endpoint
@@ -35,8 +36,8 @@ app.post('/connections', async (req: Request, res: Response) => {
             return;
         }
 
-        if (platform !== 'telegram') {
-            res.status(400).json({ error: 'Only telegram platform is currently supported' });
+        if (platform !== 'telegram' && platform !== 'whatsapp') {
+            res.status(400).json({ error: 'Unsupported platform. Supported: telegram, whatsapp' });
             return;
         }
 
@@ -49,8 +50,15 @@ app.post('/connections', async (req: Request, res: Response) => {
             userId: user_id
         };
 
-        // Create Telegram client
-        const client = new TelegramClient({ token });
+        // Create appropriate client
+        let client;
+        if (platform === 'telegram') {
+            client = new TelegramClient({ token });
+        } else {
+            client = new WhatsAppClient({
+                sessionId: user_id || `session_${Date.now()}`
+            });
+        }
 
         // Add to gateway
         await gateway.addConnection(client, config);

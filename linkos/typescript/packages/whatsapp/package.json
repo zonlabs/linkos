@@ -2,13 +2,24 @@
     "name": "@linkos/whatsapp",
     "version": "0.1.0",
     "private": true,
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
     "scripts": {
         "start": "ts-node src/index.ts",
         "dev": "ts-node-dev src/index.ts",
         "build": "tsc"
     },
     "dependencies": {
+        "@linkos/types": "workspace:*",
         "@whiskeysockets/baileys": "^6.6.0",
+        "@hapi/boom": "^10.0.1",
         "ws": "^8.16.0",
         "qrcode-terminal": "^0.12.0",
         "pino": "^8.19.0"

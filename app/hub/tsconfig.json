@@ -1,5 +1,5 @@
 {
-    "extends": "../../typescript/tsconfig.json",
+    "extends": "../../linkos/typescript/tsconfig.json",
     "compilerOptions": {
         "outDir": "./dist",
         "rootDir": "./src"

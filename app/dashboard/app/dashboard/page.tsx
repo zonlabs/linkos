@@ -220,7 +220,9 @@ export default function DashboardPage() {
                                             <TableRow key={conn.id} className="border-zinc-800/50 hover:bg-zinc-800/30 transition-colors group">
                                                 <TableCell className="font-medium">
                                                     <div className="flex items-center gap-2 capitalize">
-                                                        {conn.platform === 'telegram' ? <MessageSquare className="h-3.5 w-3.5 text-zinc-400" /> : <Bot className="h-3.5 w-3.5 text-zinc-400" />}
+                                                        {conn.platform === 'telegram' ? <MessageSquare className="h-3.5 w-3.5 text-zinc-400" /> :
+                                                            conn.platform === 'whatsapp' ? <Bot className="h-3.5 w-3.5 text-zinc-400" /> :
+                                                                <Bot className="h-3.5 w-3.5 text-zinc-400" />}
                                                         {conn.platform}
                                                     </div>
                                                 </TableCell>
@@ -278,6 +280,14 @@ export default function DashboardPage() {
                                             </Button>
                                             <Button
                                                 type="button"
+                                                variant={platform === 'whatsapp' ? 'default' : 'outline'}
+                                                className={platform === 'whatsapp' ? 'bg-white text-black px-6' : 'border-zinc-800 text-zinc-400 hover:bg-zinc-800 px-6'}
+                                                onClick={() => setPlatform('whatsapp')}
+                                            >
+                                                <Bot className="h-4 w-4 mr-2" /> WhatsApp
+                                            </Button>
+                                            <Button
+                                                type="button"
                                                 variant={platform === 'discord' ? 'default' : 'outline'}
                                                 className={platform === 'discord' ? 'bg-white text-black px-6' : 'border-zinc-800 text-zinc-400 hover:bg-zinc-800 px-6'}
                                                 onClick={() => setPlatform('discord')}
@@ -299,7 +309,7 @@ export default function DashboardPage() {
                                             required
                                         />
                                         <p className="text-[10px] text-zinc-500 flex items-center gap-1 italic">
-                                            <Power className="h-2.5 w-2.5" /> Linkos Hub will use this to establish the long-poll connection.
+                                            <Power className="h-2.5 w-2.5" /> {platform === 'whatsapp' ? 'For WhatsApp, this can be your session name. You will need to scan QR code in Hub terminal.' : 'Linkos Hub will use this to establish the long-poll connection.'}
                                         </p>
                                     </div>
 

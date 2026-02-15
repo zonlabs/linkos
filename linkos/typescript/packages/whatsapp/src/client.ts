@@ -9,45 +9,57 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
 
+import type { PlatformClient, UnifiedMessage, Platform } from '@linkos/types';
+
 const VERSION = '0.1.0';
 
-export interface InboundMessage {
-    id: string;
-    sender: string;
-    pn: string;
-    content: string;
-    name: string;
-    timestamp: number;
-    isGroup: boolean;
-}
-
 export interface WhatsAppClientOptions {
-    authDir: string;
-    onMessage: (msg: InboundMessage) => void;
-    onQR: (qr: string) => void;
-    onStatus: (status: string) => void;
+    sessionId: string;
+    authDir?: string;
 }
 
-export class WhatsAppClient {
+export class WhatsAppClient implements PlatformClient {
+    readonly platform = 'whatsapp' as const;
     private sock: any = null;
     private options: WhatsAppClientOptions;
     private reconnecting = false;
-    private logger = pino({ level: 'silent' });
+    private logger = (pino as any).default ? (pino as any).default({ level: 'silent' }) : (pino as any)({ level: 'silent' });
+    private messageHandler?: (message: UnifiedMessage) => Promise<void>;
 
     constructor(options: WhatsAppClientOptions) {
-        this.options = options;
+        this.options = {
+            authDir: options.authDir || `.auth/whatsapp/${options.sessionId}`,
+            ...options
+        };
     }
 
-    async connect(): Promise<void> {
-        const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir);
+    on(event: 'message', handler: (message: UnifiedMessage) => Promise<void>): void {
+        if (event === 'message') {
+            this.messageHandler = handler;
+        }
+    }
+
+    async start(): Promise<void> {
+        const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir!);
         const { version } = await fetchLatestBaileysVersion();
 
         console.log(`Using Baileys version: ${version.join('.')}`);
 
-        this.sock = makeWASocket({
+        this.sock = (makeWASocket as any).default ? (makeWASocket as any).default({
             auth: {
                 creds: state.creds,
-                keys: makeCacheableSignalKeyStore(state.keys, this.logger),
+                keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
+            },
+            version,
+            logger: this.logger,
+            printQRInTerminal: false,
+            browser: ['linkos', 'cli', VERSION],
+            syncFullHistory: false,
+            markOnlineOnConnect: false,
+        }) : (makeWASocket as any)({
+            auth: {
+                creds: state.creds,
+                keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
             },
             version,
             logger: this.logger,
@@ -69,7 +81,6 @@ export class WhatsAppClient {
             if (qr) {
                 console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
                 qrcode.generate(qr, { small: true });
-                this.options.onQR(qr);
             }
 
             if (connection === 'close') {
@@ -77,19 +88,17 @@ export class WhatsAppClient {
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
                 console.log(`Connection closed. Status: ${statusCode}, Will reconnect: ${shouldReconnect}`);
-                this.options.onStatus('disconnected');
 
                 if (shouldReconnect && !this.reconnecting) {
                     this.reconnecting = true;
                     console.log('Reconnecting in 5 seconds...');
                     setTimeout(() => {
                         this.reconnecting = false;
-                        this.connect();
+                        this.start();
                     }, 5000);
                 }
             } else if (connection === 'open') {
                 console.log('✅ Connected to WhatsApp');
-                this.options.onStatus('connected');
             }
         });
 
@@ -105,17 +114,26 @@ export class WhatsAppClient {
                 const content = this.extractMessageContent(msg);
                 if (!content) continue;
 
+                if (!this.messageHandler) continue;
+
                 const isGroup = msg.key.remoteJid?.endsWith('@g.us') || false;
 
-                this.options.onMessage({
-                    id: msg.key.id || '',
-                    sender: msg.key.remoteJid?.replace('@s.whatsapp.net', '') || '',
-                    pn: msg.key.remoteJid || '',
+                const unifiedMessage: UnifiedMessage = {
+                    id: msg.key.id || `wa_${Date.now()}`,
+                    platform: 'whatsapp',
+                    userId: msg.key.remoteJid?.replace('@s.whatsapp.net', '') || '',
+                    sessionId: this.options.sessionId,
                     content,
-                    name: msg.pushName || 'Unknown',
-                    timestamp: msg.messageTimestamp as number,
-                    isGroup,
-                });
+                    messageType: 'text',
+                    timestamp: new Date((msg.messageTimestamp as number) * 1000),
+                    metadata: {
+                        pushName: msg.pushName,
+                        jid: msg.key.remoteJid,
+                        isGroup
+                    }
+                };
+
+                await this.messageHandler(unifiedMessage);
             }
         });
     }
@@ -140,7 +158,7 @@ export class WhatsAppClient {
         await this.sock.sendMessage(jid, { text });
     }
 
-    async disconnect(): Promise<void> {
+    async stop(): Promise<void> {
         if (this.sock) {
             this.sock.end(undefined);
             this.sock = null;
