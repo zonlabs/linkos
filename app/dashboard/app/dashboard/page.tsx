@@ -129,11 +129,11 @@ export default function DashboardPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    connection_id: connectionId,
+                    connectionId: connectionId,
                     platform,
                     token: platform === 'whatsapp' ? 'wa-session' : botToken,
-                    user_id: user?.id,
-                    agent_url: isDeveloper ? agentUrl : "http://127.0.0.1:8001/agent",
+                    userId: user?.id,
+                    agentUrl: isDeveloper ? agentUrl : "http://127.0.0.1:8001/agent",
                 }),
             })
 
@@ -333,7 +333,7 @@ export default function DashboardPage() {
                                                 {isDeveloper && (
                                                     <TableCell>
                                                         <code className="text-[10px] bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 px-2 py-1 rounded text-zinc-500 dark:text-zinc-400 font-mono">
-                                                            {conn.agent_url}
+                                                            {conn.agentUrl}
                                                         </code>
                                                     </TableCell>
                                                 )}

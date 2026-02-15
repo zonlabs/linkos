@@ -35,10 +35,14 @@ export class Gateway {
                 }
             } catch (error) {
                 console.error(`❌ Error routing message:`, error);
-                await client.sendMessage(
-                    message.userId,
-                    `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`
-                );
+                try {
+                    await client.sendMessage(
+                        message.userId,
+                        `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`
+                    );
+                } catch (sendError) {
+                    console.error('❌ Failed to send error message to user:', sendError);
+                }
             }
         });
 

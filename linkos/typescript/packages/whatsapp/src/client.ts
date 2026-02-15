@@ -26,6 +26,7 @@ export class WhatsAppClient implements PlatformClient {
     private logger = (pino as any).default ? (pino as any).default({ level: 'silent' }) : (pino as any)({ level: 'silent' });
     private messageHandler?: (message: UnifiedMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
+    private stopped = false;
 
     constructor(options: WhatsAppClientOptions) {
         this.options = {
@@ -43,6 +44,7 @@ export class WhatsAppClient implements PlatformClient {
     }
 
     async start(): Promise<void> {
+        this.stopped = false;
         const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir!);
         const { version } = await fetchLatestBaileysVersion();
 
@@ -59,6 +61,7 @@ export class WhatsAppClient implements PlatformClient {
             browser: ['linkos', 'cli', VERSION],
             syncFullHistory: false,
             markOnlineOnConnect: false,
+            shouldIgnoreJid: (jid: string) => jid.includes('@broadcast') || jid.includes('@newsletter')
         }) : (makeWASocket as any)({
             auth: {
                 creds: state.creds,
@@ -70,6 +73,7 @@ export class WhatsAppClient implements PlatformClient {
             browser: ['linkos', 'cli', VERSION],
             syncFullHistory: false,
             markOnlineOnConnect: false,
+            shouldIgnoreJid: (jid: string) => jid.includes('@broadcast') || jid.includes('@newsletter')
         });
 
         if (this.sock.ws && typeof this.sock.ws.on === 'function') {
@@ -95,7 +99,7 @@ export class WhatsAppClient implements PlatformClient {
 
                 console.log(`Connection closed. Status: ${statusCode}, Will reconnect: ${shouldReconnect}`);
 
-                if (shouldReconnect && !this.reconnecting) {
+                if (shouldReconnect && !this.reconnecting && !this.stopped) {
                     this.reconnecting = true;
                     console.log('Reconnecting in 5 seconds...');
                     setTimeout(() => {
@@ -168,6 +172,7 @@ export class WhatsAppClient implements PlatformClient {
     }
 
     async stop(): Promise<void> {
+        this.stopped = true;
         if (this.sock) {
             this.sock.end(undefined);
             this.sock = null;

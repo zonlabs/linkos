@@ -1,8 +1,9 @@
 export interface ConnectionRequest {
-    connection_id: string;
+    connectionId: string;
     platform: string;
     token: string;
-    agent_url: string;
+    agentUrl: string;
+    userId?: string;
 }
 
 export async function createHubConnection(req: ConnectionRequest) {
@@ -51,10 +52,12 @@ export async function getHubConnectionStatus(connection_id: string) {
     return response.json();
 }
 
-export async function listHubConnections() {
+export async function listHubConnections(userId: string) {
     const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
 
-    const response = await fetch(`${HUB_API_URL}/connections`);
+    const url = `${HUB_API_URL}/connections?userId=${userId}`;
+    console.log(`🔌 [Hub API] Fetching: ${url}`);
+    const response = await fetch(url);
 
     if (!response.ok) {
         throw new Error("Failed to fetch connections from Hub");
