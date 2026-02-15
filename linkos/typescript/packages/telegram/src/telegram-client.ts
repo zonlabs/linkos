@@ -1,6 +1,6 @@
 import { Telegraf, type Context } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import type { PlatformClient, UnifiedMessage } from '@linkos/types';
+import type { PlatformClient, UnifiedMessage } from '@link-os/types';
 
 export interface TelegramClientConfig {
     token: string;

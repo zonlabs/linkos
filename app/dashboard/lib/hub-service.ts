@@ -1,6 +1,6 @@
-import { Gateway } from '@linkos/core';
-import type { PlatformClient, ConnectionConfig } from '@linkos/types';
-import { TelegramClient } from '@linkos/telegram';
+import { Gateway } from '@link-os/core';
+import type { PlatformClient, ConnectionConfig } from '@link-os/types';
+import { TelegramClient } from '@link-os/telegram';
 
 // Global declaration to prevent multiple instances in dev mode
 declare global {
@@ -38,13 +38,13 @@ export async function addConnection(platform: string, token: string, userId?: st
   };
 
   const client = new TelegramClient({ token });
-  
+
   // Start client and add to gateway
   // client.start() is already non-blocking
   await gateway.addConnection(client, config);
-  
+
   connectionStore.set(connectionId, config);
-  
+
   return {
     id: connectionId,
     platform,
@@ -55,7 +55,7 @@ export async function addConnection(platform: string, token: string, userId?: st
 export async function removeConnection(id: string) {
   const config = connectionStore.get(id);
   if (!config) throw new Error('Connection not found');
-  
+
   await gateway.removeConnection(id);
   connectionStore.delete(id);
 }

@@ -1,5 +1,5 @@
 {
-    "name": "@linkos/hub",
+    "name": "@link-os/hub",
     "version": "0.1.0",
     "type": "module",
     "description": "Linkos TypeScript Hub Service",
@@ -11,10 +11,10 @@
         "clean": "rm -rf dist"
     },
     "dependencies": {
-        "@linkos/core": "workspace:*",
-        "@linkos/telegram": "workspace:*",
-        "@linkos/types": "workspace:*",
-        "@linkos/whatsapp": "workspace:*",
+        "@link-os/core": "workspace:*",
+        "@link-os/telegram": "workspace:*",
+        "@link-os/types": "workspace:*",
+        "@link-os/whatsapp": "workspace:*",
         "express": "^4.18.2",
         "dotenv": "^16.4.1",
         "@supabase/supabase-js": "^2.39.7"

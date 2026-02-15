@@ -1,5 +1,5 @@
 import { HttpAgent } from '@ag-ui/client';
-import type { UnifiedMessage, AgentResponse } from '@linkos/types';
+import type { UnifiedMessage, AgentResponse } from '@link-os/types';
 
 export interface AGUIClientConfig {
     url: string;

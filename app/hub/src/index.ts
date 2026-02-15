@@ -1,8 +1,8 @@
 import express, { type Request, type Response } from 'express';
-import { Gateway } from '@linkos/core';
-import { TelegramClient } from '@linkos/telegram';
-import { WhatsAppClient } from '@linkos/whatsapp';
-import type { ConnectionConfig } from '@linkos/types';
+import { Gateway } from '@link-os/core';
+import { TelegramClient } from '@link-os/telegram';
+import { WhatsAppClient } from '@link-os/whatsapp';
+import type { ConnectionConfig } from '@link-os/types';
 import dotenv from 'dotenv';
 import { supabase } from './lib/supabase.js';
 

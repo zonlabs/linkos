@@ -23,16 +23,16 @@ importers:
 
   ../../app/hub:
     dependencies:
-      '@linkos/core':
+      '@link-os/core':
         specifier: workspace:*
         version: link:../../linkos/typescript/packages/core
-      '@linkos/telegram':
+      '@link-os/telegram':
         specifier: workspace:*
         version: link:../../linkos/typescript/packages/telegram
-      '@linkos/types':
+      '@link-os/types':
         specifier: workspace:*
         version: link:../../linkos/typescript/packages/types
-      '@linkos/whatsapp':
+      '@link-os/whatsapp':
         specifier: workspace:*
         version: link:../../linkos/typescript/packages/whatsapp
       '@supabase/supabase-js':
@@ -63,7 +63,7 @@ importers:
       '@ag-ui/client':
         specifier: ^0.0.45
         version: 0.0.45
-      '@linkos/types':
+      '@link-os/types':
         specifier: workspace:*
         version: link:../types
     devDependencies:
@@ -76,7 +76,7 @@ importers:
 
   packages/telegram:
     dependencies:
-      '@linkos/types':
+      '@link-os/types':
         specifier: workspace:*
         version: link:../types
       telegraf:
@@ -104,7 +104,7 @@ importers:
       '@hapi/boom':
         specifier: ^10.0.1
         version: 10.0.1
-      '@linkos/types':
+      '@link-os/types':
         specifier: workspace:*
         version: link:../types
       '@whiskeysockets/baileys':

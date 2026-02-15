@@ -1,4 +1,4 @@
-import type { UnifiedMessage, PlatformClient, AgentResponse } from '@linkos/types';
+import type { UnifiedMessage, AgentResponse } from '@link-os/types';
 import { AGUIClient } from './agui-client.js';
 
 export interface MessageRouterConfig {

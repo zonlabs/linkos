@@ -1,5 +1,5 @@
 {
-    "name": "@linkos/telegram",
+    "name": "@link-os/telegram",
     "version": "0.1.0",
     "description": "Telegram platform client for Linkos",
     "main": "./dist/index.js",
@@ -16,7 +16,7 @@
         "clean": "rm -rf dist"
     },
     "dependencies": {
-        "@linkos/types": "workspace:*",
+        "@link-os/types": "workspace:*",
         "telegraf": "^4.15.0",
         "uuid": "^13.0.0"
     },

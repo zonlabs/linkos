@@ -1,4 +1,4 @@
-import type { PlatformClient, ConnectionConfig } from '@linkos/types';
+import type { PlatformClient, ConnectionConfig } from '@link-os/types';
 import { MessageRouter } from './message-router.js';
 
 export interface GatewayConfig {

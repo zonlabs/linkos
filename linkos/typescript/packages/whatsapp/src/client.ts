@@ -9,7 +9,7 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
 
-import type { PlatformClient, UnifiedMessage, Platform } from '@linkos/types';
+import type { PlatformClient, UnifiedMessage, Platform } from '@link-os/types';
 
 const VERSION = '0.1.0';
 

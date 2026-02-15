@@ -1,5 +1,5 @@
 {
-    "name": "@linkos/types",
+    "name": "@link-os/types",
     "version": "0.1.0",
     "description": "Shared TypeScript types for Linkos",
     "main": "./dist/index.js",
