@@ -13,7 +13,8 @@
     "scripts": {
         "start": "ts-node src/index.ts",
         "dev": "ts-node-dev src/index.ts",
-        "build": "tsc"
+        "build": "tsc",
+        "prepublishOnly": "pnpm build"
     },
     "dependencies": {
         "@link-os/types": "workspace:*",
