@@ -6,7 +6,7 @@ export interface ConnectionRequest {
 }
 
 export async function createHubConnection(req: ConnectionRequest) {
-    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8080";
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
 
     const response = await fetch(`${HUB_API_URL}/connections`, {
         method: "POST",
@@ -25,7 +25,7 @@ export async function createHubConnection(req: ConnectionRequest) {
 }
 
 export async function deleteHubConnection(connection_id: string) {
-    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8080";
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
 
     const response = await fetch(`${HUB_API_URL}/connections/${connection_id}`, {
         method: "DELETE",
@@ -40,7 +40,7 @@ export async function deleteHubConnection(connection_id: string) {
 }
 
 export async function getHubConnectionStatus(connection_id: string) {
-    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8080";
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
 
     const response = await fetch(`${HUB_API_URL}/connections/${connection_id}/status`);
 
@@ -52,7 +52,7 @@ export async function getHubConnectionStatus(connection_id: string) {
 }
 
 export async function listHubConnections() {
-    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8080";
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
 
     const response = await fetch(`${HUB_API_URL}/connections`);
 

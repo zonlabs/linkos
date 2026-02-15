@@ -64,6 +64,7 @@ export interface PlatformClient {
     stop(): Promise<void>;
     sendMessage(userId: string, content: string): Promise<void>;
     on(event: 'message', handler: (message: UnifiedMessage) => Promise<void>): void;
+    on(event: 'status', handler: (status: { type: string; data?: any }) => void): void;
 }
 
 /**

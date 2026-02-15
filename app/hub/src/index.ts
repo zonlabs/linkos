@@ -15,7 +15,11 @@ const gateway = new Gateway({
 });
 
 // Store active connections
-const connections = new Map<string, { client: TelegramClient | WhatsAppClient; config: ConnectionConfig }>();
+const connections = new Map<string, {
+    client: TelegramClient | WhatsAppClient;
+    config: ConnectionConfig;
+    status: { type: string; data?: any };
+}>();
 
 /**
  * Health check endpoint
@@ -29,9 +33,9 @@ app.get('/health', (req: Request, res: Response) => {
  */
 app.post('/connections', async (req: Request, res: Response) => {
     try {
-        const { platform, token, user_id } = req.body;
+        const { platform, token, user_id, connection_id } = req.body;
 
-        if (!platform || !token) {
+        if (!platform || (platform !== 'whatsapp' && !token)) {
             res.status(400).json({ error: 'Missing platform or token' });
             return;
         }
@@ -41,7 +45,7 @@ app.post('/connections', async (req: Request, res: Response) => {
             return;
         }
 
-        const connectionId = `${platform}_${Date.now()}`;
+        const connectionId = connection_id || `${platform}_${Date.now()}`;
         const config: ConnectionConfig = {
             id: connectionId,
             platform,
@@ -60,11 +64,18 @@ app.post('/connections', async (req: Request, res: Response) => {
             });
         }
 
+        // Create and store connection object
+        const connectionObj = { client, config, status: { type: 'initializing' } };
+        connections.set(connectionId, connectionObj);
+
+        // Listen for status updates
+        client.on('status', (status: { type: string; data?: any }) => {
+            console.log(`📡 Status update for ${connectionId}:`, status);
+            connectionObj.status = status;
+        });
+
         // Add to gateway
         await gateway.addConnection(client, config);
-
-        // Store connection
-        connections.set(connectionId, { client, config });
 
         res.status(201).json({
             id: connectionId,
@@ -83,12 +94,25 @@ app.post('/connections', async (req: Request, res: Response) => {
  * List all connections
  */
 app.get('/connections', (req: Request, res: Response) => {
-    const conns = Array.from(connections.values()).map(({ config }) => ({
+    const conns = Array.from(connections.values()).map(({ config, status }) => ({
         id: config.id,
         platform: config.platform,
-        userId: config.userId
+        userId: config.userId,
+        status: status.type
     }));
     res.json(conns);
+});
+
+/**
+ * Get connection status
+ */
+app.get('/connections/:id/status', (req: Request, res: Response) => {
+    const connection = connections.get(req.params.id);
+    if (!connection) {
+        res.status(404).json({ error: 'Connection not found' });
+        return;
+    }
+    res.json(connection.status);
 });
 
 /**

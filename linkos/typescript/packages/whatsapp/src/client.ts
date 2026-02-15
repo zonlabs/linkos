@@ -25,6 +25,7 @@ export class WhatsAppClient implements PlatformClient {
     private reconnecting = false;
     private logger = (pino as any).default ? (pino as any).default({ level: 'silent' }) : (pino as any)({ level: 'silent' });
     private messageHandler?: (message: UnifiedMessage) => Promise<void>;
+    private statusHandler?: (status: { type: string; data?: any }) => void;
 
     constructor(options: WhatsAppClientOptions) {
         this.options = {
@@ -33,9 +34,11 @@ export class WhatsAppClient implements PlatformClient {
         };
     }
 
-    on(event: 'message', handler: (message: UnifiedMessage) => Promise<void>): void {
+    on(event: 'message' | 'status', handler: any): void {
         if (event === 'message') {
             this.messageHandler = handler;
+        } else if (event === 'status') {
+            this.statusHandler = handler;
         }
     }
 
@@ -81,6 +84,9 @@ export class WhatsAppClient implements PlatformClient {
             if (qr) {
                 console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
                 qrcode.generate(qr, { small: true });
+                if (this.statusHandler) {
+                    this.statusHandler({ type: 'qr', data: qr });
+                }
             }
 
             if (connection === 'close') {
@@ -99,6 +105,9 @@ export class WhatsAppClient implements PlatformClient {
                 }
             } else if (connection === 'open') {
                 console.log('✅ Connected to WhatsApp');
+                if (this.statusHandler) {
+                    this.statusHandler({ type: 'connected' });
+                }
             }
         });
 
