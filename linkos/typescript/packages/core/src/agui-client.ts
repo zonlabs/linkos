@@ -8,13 +8,13 @@ export interface AGUIClientConfig {
 
 /**
  * AG-UI Client wrapper using official @ag-ui/client HttpAgent  
- * This eliminates message ID bugs by using the battle-tested protocol implementation
+ * Refactored to be stateless: every request creates a transient agent instance.
+ * This ensures compatibility with serverless environments and avoids sync issues.
  */
 export class AGUIClient {
     private url: string;
     private headers?: Record<string, string>;
-
-    private agents: Map<string, HttpAgent> = new Map();
+    private historyMap: Map<string, any[]> = new Map();
 
     constructor(config: AGUIClientConfig) {
         this.url = config.url;
@@ -29,19 +29,21 @@ export class AGUIClient {
         let fullContent = '';
         let assistantMessageId: string | undefined;
 
-        // Get or create agent instance for this session (thread)
-        let agent = this.agents.get(message.sessionId);
-        if (!agent) {
-            agent = new HttpAgent({
-                url: this.url,
-                headers: this.headers,
-                threadId: message.sessionId
-            });
-            this.agents.set(message.sessionId, agent);
+        // Initialize transient agent instance for this specific request
+        const agent = new HttpAgent({
+            url: this.url,
+            headers: this.headers,
+            threadId: message.sessionId
+        });
+
+        // Rehydrate history from internal cache if available
+        const existingHistory = this.historyMap.get(message.sessionId);
+        if (existingHistory && existingHistory.length > 0) {
+            console.log(`[AGUI] 📸 Rehydrating ${existingHistory.length} messages from snapshot cache`);
+            agent.addMessages(existingHistory);
         }
 
-        // Add the new user message to the agent's state
-        // This ensures the agent maintains the full conversation history
+        // Add the new user message to the agent's state for the current run
         agent.addMessage({
             id: message.id,
             role: 'user',
@@ -57,6 +59,10 @@ export class AGUIClient {
                     context: []
                 },
                 {
+                    onMessagesSnapshotEvent: (params) => {
+                        console.log(`\n📸 [AGUI] Updating snapshot cache (${params.event.messages.length} messages) for session ${message.sessionId}`);
+                        this.historyMap.set(message.sessionId, params.event.messages);
+                    },
                     onTextMessageStartEvent: (params) => {
                         console.log('🔹 Event: Text Message Start');
                         assistantMessageId = params.event.messageId;
