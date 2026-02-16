@@ -1,6 +1,6 @@
 {
     "name": "@link-os/core",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Core gateway and routing for Linkos",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",

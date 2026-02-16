@@ -36,8 +36,13 @@ export class WhatsAppClient implements PlatformClient {
     private messageHandler?: (message: UnifiedMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private stopped = false;
-
+    private isStarting = false;
+    private reconnectAttempts = 0;
+    private maxReconnectAttempts = 3;
+    private resetTimeout: NodeJS.Timeout | null = null;
     private allowedJids: string[] = [];
+    // TODO: Implement persistent storage to save contacts across restarts.
+    // Currently, contacts are only in-memory and lost on restart.
 
     constructor(options: WhatsAppClientOptions) {
         this.options = {
@@ -64,79 +69,130 @@ export class WhatsAppClient implements PlatformClient {
     }
 
     async start(): Promise<void> {
+        if (this.isStarting) {
+            return;
+        }
+        this.isStarting = true;
         this.stopped = false;
-        const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir!);
-        const { version } = await fetchLatestBaileysVersion();
 
-        console.log(`Using Baileys version: ${version.join('.')}`);
-        if (this.allowedJids.length > 0) {
-            console.log(`🔒 Allowlist enabled: ${this.allowedJids.length} IDs allowed.`);
+        // Clear any pending reset
+        if (this.resetTimeout) {
+            clearTimeout(this.resetTimeout);
+            this.resetTimeout = null;
         }
 
-        this.sock = (makeWASocket as any).default ? (makeWASocket as any).default({
-            auth: {
-                creds: state.creds,
-                keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
-            },
-            version,
-            logger: this.logger,
-            printQRInTerminal: false,
-            browser: ['Ubuntu', 'Chrome', '20.0.04'],
-            syncFullHistory: true, // Recommended for better desktop state emulation
-            markOnlineOnConnect: false,
-        }) : (makeWASocket as any)({
-            auth: {
-                creds: state.creds,
-                keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
-            },
-            version,
-            logger: this.logger,
-            printQRInTerminal: false,
-            browser: ['Ubuntu', 'Chrome', '20.0.04'],
-            syncFullHistory: true,
-            markOnlineOnConnect: false,
-        });
+        try {
+            console.log(`[WhatsAppClient] Initializing auth state for ${this.options.sessionId}...`);
+            const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir!);
+            console.log(`[WhatsAppClient] Fetching latest Baileys version...`);
+            const { version } = await fetchLatestBaileysVersion();
 
-        if (this.sock.ws && typeof this.sock.ws.on === 'function') {
-            this.sock.ws.on('error', (err: Error) => {
-                console.error('WebSocket error:', err.message);
+            console.log(`Using Baileys version: ${version.join('.')}`);
+            // ... (rest of start)
+            if (this.allowedJids.length > 0) {
+                console.log(`🔒 Allowlist enabled: ${this.allowedJids.length} IDs allowed.`);
+            }
+
+            this.sock = (makeWASocket as any).default ? (makeWASocket as any).default({
+                auth: {
+                    creds: state.creds,
+                    keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
+                },
+                version,
+                logger: this.logger,
+                printQRInTerminal: false,
+                browser: ['Ubuntu', 'Chrome', '20.0.04'],
+                syncFullHistory: true, // Recommended for better desktop state emulation
+                markOnlineOnConnect: false,
+            }) : (makeWASocket as any)({
+                auth: {
+                    creds: state.creds,
+                    keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
+                },
+                version,
+                logger: this.logger,
+                printQRInTerminal: false,
+                browser: ['Ubuntu', 'Chrome', '20.0.04'],
+                syncFullHistory: true,
+                markOnlineOnConnect: false,
             });
+
+            if (this.sock.ws && typeof this.sock.ws.on === 'function') {
+                this.sock.ws.on('error', (err: Error) => {
+                    console.error('WebSocket error:', err.message);
+                });
+            }
+
+            this.sock.ev.on('connection.update', async (update: any) => {
+                const { connection, lastDisconnect, qr } = update;
+
+                if (qr) {
+                    console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
+                    qrcode.generate(qr, { small: true });
+                    if (this.statusHandler) {
+                        this.statusHandler({ type: 'qr', data: qr });
+                    }
+                }
+
+                if (connection === 'close') {
+                    const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                    const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+                    console.log(`Connection closed. Status: ${statusCode}, Will reconnect: ${shouldReconnect}`);
+
+                    if (this.resetTimeout) {
+                        clearTimeout(this.resetTimeout);
+                        this.resetTimeout = null;
+                    }
+
+                    if (shouldReconnect && !this.reconnecting && !this.stopped) {
+                        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                            this.reconnectAttempts++;
+                            this.reconnecting = true;
+                            if (this.statusHandler) {
+                                this.statusHandler({ type: 'reconnecting', data: { attempt: this.reconnectAttempts, max: this.maxReconnectAttempts } });
+                            }
+                            console.log(`Reconnecting (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in 5 seconds...`);
+                            setTimeout(() => {
+                                this.reconnecting = false;
+                                this.start();
+                            }, 5000);
+                        } else {
+                            console.error(`[WhatsApp] Max reconnection attempts (${this.maxReconnectAttempts}) reached. Stopping.`);
+                            if (this.statusHandler) {
+                                this.statusHandler({ type: 'disconnected', data: { reason: 'max_retries' } });
+                            }
+                            this.stop();
+                        }
+                    } else if (this.statusHandler && !shouldReconnect) {
+                        this.statusHandler({ type: 'disconnected' });
+                    }
+                } else if (connection === 'open') {
+                    console.log('✅ Connected to WhatsApp');
+                    this.isStarting = false;
+
+                    // Only reset attempts after 10 seconds of stable connection
+                    if (this.resetTimeout) clearTimeout(this.resetTimeout);
+                    this.resetTimeout = setTimeout(() => {
+                        this.reconnectAttempts = 0;
+                        this.resetTimeout = null;
+                    }, 10000);
+
+                    if (this.statusHandler) {
+                        this.statusHandler({ type: 'connected' });
+                    }
+                }
+            });
+
+            this.sock.ev.on('creds.update', saveCreds);
+
+        } catch (error) {
+            this.isStarting = false;
+            console.error('[WhatsApp] Failed to start:', error);
+            if (this.statusHandler) {
+                this.statusHandler({ type: 'error', data: error });
+            }
         }
-
-        this.sock.ev.on('connection.update', async (update: any) => {
-            const { connection, lastDisconnect, qr } = update;
-
-            if (qr) {
-                console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
-                qrcode.generate(qr, { small: true });
-                if (this.statusHandler) {
-                    this.statusHandler({ type: 'qr', data: qr });
-                }
-            }
-
-            if (connection === 'close') {
-                const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
-                console.log(`Connection closed. Status: ${statusCode}, Will reconnect: ${shouldReconnect}`);
-
-                if (shouldReconnect && !this.reconnecting && !this.stopped) {
-                    this.reconnecting = true;
-                    console.log('Reconnecting in 5 seconds...');
-                    setTimeout(() => {
-                        this.reconnecting = false;
-                        this.start();
-                    }, 5000);
-                }
-            } else if (connection === 'open') {
-                console.log('✅ Connected to WhatsApp');
-                if (this.statusHandler) {
-                    this.statusHandler({ type: 'connected' });
-                }
-            }
-        });
-
-        this.sock.ev.on('creds.update', saveCreds);
 
         this.sock.ev.on('messages.upsert', async ({ messages, type }: { messages: any[]; type: string }) => {
             if (type !== 'notify') return;
@@ -290,6 +346,11 @@ export class WhatsAppClient implements PlatformClient {
 
     async stop(): Promise<void> {
         this.stopped = true;
+        this.isStarting = false;
+        if (this.resetTimeout) {
+            clearTimeout(this.resetTimeout);
+            this.resetTimeout = null;
+        }
         if (this.sock) {
             this.sock.end(undefined);
             this.sock = null;
@@ -315,7 +376,7 @@ export class WhatsAppClient implements PlatformClient {
         const contexts: { id: string; name: string; type: 'group' | 'user'; image?: string }[] = [];
 
         try {
-            // Fetch groups
+            // 1. Groups from direct fetch (most reliable for groups)
             const groups = await this.sock.groupFetchAllParticipating();
             for (const [id, metadata] of Object.entries(groups)) {
                 contexts.push({
@@ -324,27 +385,14 @@ export class WhatsAppClient implements PlatformClient {
                     type: 'group'
                 });
             }
-
-            // Contacts fetching without store is not supported in minimalist mode
-            // We rely on groups and manual entry for now to ensure stability
         } catch (error) {
             console.error('Failed to fetch contexts:', error);
         }
 
-        // Deduplicate
-        const unique = new Map();
-        for (const ctx of contexts) {
-            if (!unique.has(ctx.id)) {
-                unique.set(ctx.id, ctx);
-            }
-        }
-
-        const uniqueContexts = Array.from(unique.values());
-
         // Fetch Profile Pictures (best effort, parallel)
-        await Promise.all(uniqueContexts.map(async (ctx) => {
+        await Promise.all(contexts.map(async (ctx) => {
             try {
-                // 'preview' is faster/smaller, 'image' is full size
+                // Only fetch if we don't have one or to refresh
                 ctx.image = await this.sock.profilePictureUrl(ctx.id, 'preview');
             } catch (e) {
                 // Ignore error (no profile pic or privacy restricted)
@@ -352,6 +400,6 @@ export class WhatsAppClient implements PlatformClient {
             }
         }));
 
-        return uniqueContexts;
+        return contexts;
     }
 }

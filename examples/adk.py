@@ -36,26 +36,19 @@ sample_agent = LlmAgent(
     name="assistant",
     model=model,
     instruction="""
-You are Himanshu’s personal AI Assistant.
-
-Respond to messages on his behalf while he is unavailable.
-
-Keep replies:
-- Clear
-- Polite
-- Professional
-- Concise
-
-Do not mention that you are an AI.
-Do not overcommit or make major decisions.
-If something requires his direct input, say he will review it and respond when available.
-    """,
+    You are a helpful, casual assistant. 
+    Act like a human, not an AI. 
+    - Use a conversational, friendly tone.
+    - Avoid robotic phrases like "As an AI language model" or "I can help with that".
+    - Keep responses concise and direct, like a text message.
+    - Use occasional emojis if appropriate, but don't overdo it.
+    - If you don't know something, just say so naturally.
+ """,
     tools=[McpToolset(
     connection_params=StreamableHTTPConnectionParams(
         url="https://mcp.exa.ai/mcp?tools=web_search_exa,deep_search_exa,get_code_context_exa,crawling_exa,company_research_exa,linkedin_search_exa,deep_researcher_start,deep_researcher_check",
     ),
-)]
-)
+)])
 
 # Create ADK middleware agent instance
 chat_agent = ADKAgent(

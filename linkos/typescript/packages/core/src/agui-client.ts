@@ -25,7 +25,7 @@ export class AGUIClient {
      * Send a message to the agent using official HttpAgent
      * Uses the subscriber pattern for event handling
      */
-    async sendMessage(message: UnifiedMessage): Promise<AgentResponse> {
+    async sendMessage(message: UnifiedMessage, middlewares: Array<(input: any, next: any) => any> = []): Promise<AgentResponse> {
         let fullContent = '';
         let assistantMessageId: string | undefined;
 
@@ -35,6 +35,14 @@ export class AGUIClient {
             headers: this.headers,
             threadId: message.sessionId
         });
+
+        // Apply provided middlewares
+        if (middlewares.length > 0) {
+            middlewares.forEach(middleware => {
+                agent.use(middleware);
+            });
+            console.log(`[AGUI] 🔌 Applied ${middlewares.length} custom middlewares`);
+        }
 
         // Rehydrate history from internal cache if available
         const existingHistory = this.historyMap.get(message.sessionId);

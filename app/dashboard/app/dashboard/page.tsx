@@ -3,7 +3,6 @@
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,11 +10,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Plus, Bot, Power, Trash2, ChevronRight, Settings, Shield, ArrowRight, ArrowLeft } from "lucide-react"
+import ConnectionSettings from "@/components/ConnectionSettings"
+import LLMKeySettings from "@/components/LLMKeySettings"
+import UsageStats from "@/components/UsageStats"
+import { Loader2, Plus, Bot, Power, Trash2, ChevronRight, Settings, Shield, ArrowRight, QrCode, Brain, Key } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { Header } from "@/components/layout/header"
 import { toast } from "sonner"
-import ConnectionSettings from "@/components/ConnectionSettings"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 
 export default function DashboardPage() {
     const [user, setUser] = useState<any>(null)
@@ -28,6 +36,13 @@ export default function DashboardPage() {
     const [agentUrl, setAgentUrl] = useState("http://127.0.0.1:8001/agent")
     const [platform, setPlatform] = useState("telegram")
     const [adding, setAdding] = useState(false)
+    const [llmKeys, setLlmKeys] = useState({
+        openai: "",
+        google: "",
+        grok: "",
+        claude: "",
+        deepseek: ""
+    })
 
     // QR & Status states
     const [showQR, setShowQR] = useState(false)
@@ -137,6 +152,7 @@ export default function DashboardPage() {
                     token: platform === 'whatsapp' ? 'wa-session' : botToken,
                     userId: user?.id,
                     agentUrl: isDeveloper ? agentUrl : "http://127.0.0.1:8001/agent",
+                    metadata: {}
                 }),
             })
 
@@ -175,6 +191,32 @@ export default function DashboardPage() {
             toast.error("Failed to delete connection. Please try again.")
         }
     }
+
+    const handleStopConnection = async (id: string) => {
+        try {
+            const res = await fetch(`/api/connections/${id}/stop`, { method: "POST" });
+            if (!res.ok) throw new Error(await res.text());
+            const updated = connections.map(c => c.id === id ? { ...c, status: 'stopped' } : c);
+            setConnections(updated);
+        } catch (e) {
+            console.error("Stop failed", e);
+            toast.error("Failed to stop gateway.");
+        }
+    };
+
+    const handleScanQR = async (id: string) => {
+        try {
+            setPendingConnId(id);
+            setConnStatus("initializing");
+            setShowQR(true);
+            const res = await fetch(`/api/connections/${id}/scan-qr`, { method: "POST" });
+            if (!res.ok) throw new Error(await res.text());
+        } catch (e: any) {
+            console.error("Scan QR failed", e);
+            toast.error(`Failed to start scan: ${e.message}`);
+            setShowQR(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -223,8 +265,12 @@ export default function DashboardPage() {
 
                                 <Button
                                     className="w-full bg-white text-black hover:bg-zinc-200 h-12 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
-                                    onClick={() => {
+                                    onClick={async () => {
+                                        if (connStatus !== 'connected' && pendingConnId) {
+                                            await handleStopConnection(pendingConnId);
+                                        }
                                         setShowQR(false)
+                                        setPendingConnId(null)
                                         setActiveTab("connections")
                                     }}
                                 >
@@ -242,17 +288,15 @@ export default function DashboardPage() {
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
 
                 <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-8">
-                    <span
-                        className={activeTab === 'connections' ? 'text-zinc-900 dark:text-white cursor-default' : 'hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors cursor-pointer'}
-                        onClick={() => activeTab !== 'connections' && setActiveTab('connections')}
-                    >
-                        Connections
-                    </span>
+                    <span className="cursor-pointer hover:text-zinc-900 dark:text-white transition-colors" onClick={() => {
+                        setActiveTab('connections');
+                        setSelectedConnectionId(null);
+                    }}>CONNECTIONS</span>
                     {activeTab === 'add' && (
                         <>
                             <ChevronRight className="h-3 w-3" />
                             <span className="text-zinc-900 dark:text-white animate-in fade-in slide-in-from-left-2">
-                                New Gateway
+                                Add Gateway
                             </span>
                         </>
                     )}
@@ -264,9 +308,27 @@ export default function DashboardPage() {
                             </span>
                         </>
                     )}
+                    {activeTab === 'brain' && !isDeveloper && (
+                        <>
+                            <ChevronRight className="h-3 w-3" />
+                            <span className="text-zinc-900 dark:text-white animate-in fade-in slide-in-from-left-2">
+                                LLM API Keys
+                            </span>
+                        </>
+                    )}
                 </div>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                    {activeTab === 'connections' && !selectedConnectionId && (
+                        <div className="flex items-center justify-between mb-4">
+                            <TabsList className="bg-zinc-100 dark:bg-white/5 p-1 rounded-2xl h-12">
+                                <TabsTrigger value="connections" className="rounded-xl px-6 h-10 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:shadow-sm text-[10px] font-black uppercase tracking-widest">Workspace</TabsTrigger>
+                                {!isDeveloper && (
+                                    <TabsTrigger value="brain" className="rounded-xl px-6 h-10 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:shadow-sm text-[10px] font-black uppercase tracking-widest">LLM API Keys</TabsTrigger>
+                                )}
+                            </TabsList>
+                        </div>
+                    )}
 
 
                     <TabsContent value="connections" className="space-y-10 animate-in fade-in zoom-in-95 duration-500">
@@ -275,7 +337,7 @@ export default function DashboardPage() {
                                 <div className="space-y-1 relative z-10">
                                     <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em]">Active Proxies</span>
                                     <div className="text-4xl font-black font-mono tracking-tighter text-zinc-900 dark:text-white">
-                                        {connections.filter(c => c.status === 'active').length}
+                                        {connections.filter(c => c.status === 'active' || c.status === 'connected').length}
                                     </div>
                                 </div>
                                 <div className="absolute top-0 right-0 p-6 opacity-10 dark:opacity-5 group-hover:opacity-20 transition-all duration-700 group-hover:scale-110 group-hover:-rotate-12">
@@ -284,34 +346,30 @@ export default function DashboardPage() {
                             </div>
                             <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5 relative group overflow-hidden">
                                 <div className="space-y-1 relative z-10">
-                                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em]">Total Tunnels</span>
-                                    <div className="text-4xl font-black font-mono tracking-tighter text-zinc-900 dark:text-white">{connections.length}</div>
+                                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em]">Total Connections</span>
+                                    <div className="text-4xl font-black font-mono tracking-tighter text-zinc-900 dark:text-white">
+                                        {connections.length}
+                                    </div>
                                 </div>
                                 <div className="absolute top-0 right-0 p-6 opacity-10 dark:opacity-5 group-hover:opacity-20 transition-all duration-700 group-hover:scale-110 group-hover:-rotate-12">
                                     <Plus className="h-12 w-12 text-zinc-900 dark:text-white" />
                                 </div>
                             </div>
-                            <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5 relative group overflow-hidden">
-                                <div className="space-y-1 relative z-10">
-                                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.2em]">Hub Status</span>
-                                    <div className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-3">
-                                        ONLINE <div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shadow-[0_0_15px_rgba(34,197,94,0.6)]" />
-                                    </div>
-                                </div>
-                                <div className="absolute top-0 right-0 p-6 opacity-10 dark:opacity-5 group-hover:opacity-20 transition-all duration-700 group-hover:scale-110 group-hover:-rotate-12">
-                                    <Power className="h-12 w-12 text-zinc-900 dark:text-white" />
-                                </div>
-                            </div>
+                        </div>
+
+                        {/* Usage Stats Card */}
+                        <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5 relative group overflow-hidden">
+                            <UsageStats />
                         </div>
 
                         <div className="space-y-6">
                             <div className="flex flex-row items-center justify-between px-2">
                                 <div>
-                                    <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">Gateway Connections</h3>
-                                    <p className="text-zinc-500 text-xs font-medium mt-1">Global messenger-to-agent streaming tunnels.</p>
+                                    <h3 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">Active Gateways</h3>
+                                    <p className="text-zinc-500 text-xs font-medium mt-1">Global messenger-to-agent streaming connections.</p>
                                 </div>
                                 <Button size="sm" className="bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 rounded-full h-10 px-6 font-black text-[10px] uppercase tracking-widest transition-all hover:scale-105 shadow-none" onClick={() => setActiveTab("add")}>
-                                    <Plus className="h-3.5 w-3.5 mr-2" /> Deploy New
+                                    <Plus className="h-3.5 w-3.5 mr-2" /> Add Gateway
                                 </Button>
                             </div>
                             <div className="px-2">
@@ -333,9 +391,9 @@ export default function DashboardPage() {
                                                 <TableCell colSpan={5} className="text-center py-10 text-zinc-500 italic">No active connections found.</TableCell>
                                             </TableRow>
                                         ) : connections.map((conn) => (
-                                            <TableRow key={conn.id} className="border-zinc-200 dark:border-white/5 hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group">
+                                            <TableRow key={conn.id} className="border-zinc-50 dark:border-white/5 hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors group">
                                                 <TableCell className="font-medium">
-                                                    <div className="flex items-center gap-3 capitalize bg-zinc-100 dark:bg-white/10 w-fit px-3 py-1 rounded-full border border-zinc-200 dark:border-white/5">
+                                                    <div className="flex items-center gap-3 capitalize w-fit px-3 py-1 rounded-full">
                                                         <PlatformIcon platform={conn.platform} />
                                                         <span className="text-xs text-zinc-900 dark:text-zinc-100">{conn.platform}</span>
                                                     </div>
@@ -351,24 +409,56 @@ export default function DashboardPage() {
                                                 <TableCell>
                                                     <div className="flex items-center justify-center gap-2">
                                                         <Badge variant="outline"
-                                                            className={conn.status === 'active' || conn.status === 'connected' ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : conn.status === 'initializing' || conn.status === 'qr' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border-yellow-500/20' : 'bg-red-500/10 text-red-600 dark:text-red-500 border-red-500/20'}>
+                                                            className={conn.status === 'active' || conn.status === 'connected' ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : conn.status === 'initializing' || conn.status === 'qr' || conn.status === 'reconnecting' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 border-yellow-500/20' : 'bg-red-500/10 text-red-600 dark:text-red-500 border-red-500/20'}>
                                                             <div className={`h-1.5 w-1.5 rounded-full mr-1.5 animate-pulse ${conn.status === 'active' || conn.status === 'connected' ? 'bg-green-500' : 'bg-yellow-500'}`} />
                                                             {conn.status}
                                                         </Badge>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-right space-x-1">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10"
-                                                        onClick={() => {
-                                                            setSelectedConnectionId(conn.id);
-                                                            setActiveTab('settings');
-                                                        }}
-                                                    >
-                                                        <Settings className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" onClick={() => handleDeleteConnection(conn.id)}>
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
+                                                    <TooltipProvider>
+                                                        {(conn.status === 'qr' || conn.status === 'initializing' || conn.status === 'inactive' || conn.status === 'stopped' || conn.status === 'disconnected') && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10"
+                                                                        onClick={() => handleScanQR(conn.id)}
+                                                                    >
+                                                                        <QrCode className="h-3.5 w-3.5" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="text-[10px] uppercase font-bold tracking-widest">Connect / Scan QR</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        {(conn.status === 'connected' || conn.status === 'active') && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10"
+                                                                        onClick={() => {
+                                                                            setSelectedConnectionId(conn.id);
+                                                                            setActiveTab('settings');
+                                                                        }}
+                                                                    >
+                                                                        <Settings className="h-3.5 w-3.5" />
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="text-[10px] uppercase font-bold tracking-widest">Configure Settings</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" onClick={() => handleDeleteConnection(conn.id)}>
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p className="text-[10px] uppercase font-bold tracking-widest">Delete Connection</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -385,7 +475,7 @@ export default function DashboardPage() {
                             </div>
 
                             <div className="mb-8">
-                                <h2 className="text-2xl font-black tracking-tight uppercase italic text-gradient-premium">New Gateway</h2>
+                                <h2 className="text-2xl font-black tracking-tight uppercase text-gradient-premium">Add Gateway</h2>
                                 <p className="text-zinc-500 font-medium mt-1">
                                     Bridge your messenger platform to the remote agent.
                                 </p>
@@ -458,6 +548,26 @@ export default function DashboardPage() {
                                             </div>
                                         )}
 
+                                        {!isDeveloper && (
+                                            <div className="p-6 rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                <div className="flex items-center gap-4">
+                                                    <Key className="h-6 w-6 text-primary" />
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-white/80">LLM Key Sync</p>
+                                                        <p className="text-[10px] text-zinc-500 font-medium">Global API keys will be automatically applied.</p>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="w-full rounded-xl border-dashed border-zinc-300 dark:border-white/10 h-10 text-[9px] font-bold uppercase tracking-widest"
+                                                    onClick={() => setActiveTab('brain')}
+                                                >
+                                                    Configure LLM Keys
+                                                </Button>
+                                            </div>
+                                        )}
+
                                         <div className="space-y-4 pt-4">
                                             <Button
                                                 className="w-full rounded-full h-14 font-black text-xs uppercase tracking-[0.3em] bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:text-black dark:hover:bg-zinc-200 transition-all flex items-center justify-center gap-2 group shadow-xl hover:shadow-2xl hover:-translate-y-0.5"
@@ -465,7 +575,7 @@ export default function DashboardPage() {
                                             >
                                                 {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                                                     <>
-                                                        Deploy Gateway
+                                                        Add Gateway
                                                         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                                                     </>
                                                 )}
@@ -490,8 +600,14 @@ export default function DashboardPage() {
                             />
                         )}
                     </TabsContent>
+
+                    {!isDeveloper && (
+                        <TabsContent value="brain" className="animate-in fade-in slide-in-from-right-8 duration-700 w-full overflow-hidden">
+                            <LLMKeySettings />
+                        </TabsContent>
+                    )}
                 </Tabs>
-            </main>
+            </main >
         </>
     )
 }

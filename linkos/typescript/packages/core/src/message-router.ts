@@ -22,7 +22,7 @@ export class MessageRouter {
     /**
      * Route a message to the agent and return response
      */
-    async routeMessage(message: UnifiedMessage): Promise<AgentResponse> {
+    async routeMessage(message: UnifiedMessage, middlewares: Array<(input: any, next: any) => any> = []): Promise<AgentResponse> {
         // We append the unique runId to the sessionId for every Hub execution.
         // This ensures the agent creates a brand-new conversation thread on every restart,
         // avoiding "unmatched history" errors from previous Hub sessions.
@@ -34,7 +34,7 @@ export class MessageRouter {
         const response = await this.agentClient.sendMessage({
             ...message,
             sessionId: sessionId
-        });
+        }, middlewares);
 
         console.log(`✅ Agent responded (${response.content.length} chars)`);
         return response;

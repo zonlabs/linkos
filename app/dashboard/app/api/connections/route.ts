@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { platform, token, agentUrl, connectionId, userId } = body;
+        const { platform, token, agentUrl, connectionId, userId, metadata } = body;
 
         // Generate or use provided ID
         const finalId = connectionId || `gw-${Math.random().toString(36).substr(2, 9)}`;
@@ -44,6 +44,7 @@ export async function POST(request: Request) {
             token,
             agentUrl,
             userId,
+            metadata,
         });
 
         // The Hub now returns ConnectionMetadata, which we pass back to the UI

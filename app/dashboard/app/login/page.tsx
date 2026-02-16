@@ -112,7 +112,7 @@ export default function LoginPage() {
                         variant="outline"
                         type="button"
                         disabled={loading}
-                        className="bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800 h-11"
+                        className="bg-white/5 border-white/10 text-white hover:bg-white hover:text-black h-11 transition-all uppercase tracking-widest text-[10px] font-bold"
                         onClick={async () => {
                             await supabase.auth.signInWithOAuth({
                                 provider: 'google',

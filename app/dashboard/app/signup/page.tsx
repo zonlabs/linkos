@@ -60,7 +60,7 @@ export default function SignupPage() {
                     <p className="text-sm text-zinc-400">
                         We&apos;ve sent a confirmation link to <span className="text-zinc-200 font-medium">{email}</span>. Please check your inbox to activate your account.
                     </p>
-                    <Button variant="outline" className="mt-4 border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:text-white" asChild>
+                    <Button variant="outline" className="mt-4 bg-white/5 border-white/10 text-white hover:bg-white hover:text-black uppercase tracking-widest text-[10px] font-bold h-11 transition-all" asChild>
                         <Link href="/login">Back to Sign In</Link>
                     </Button>
                 </div>
