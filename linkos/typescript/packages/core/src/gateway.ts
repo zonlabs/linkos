@@ -20,18 +20,17 @@ export class Gateway {
     /**
      * Add a platform connection
      */
-    async addConnection(client: PlatformClient, config: ConnectionConfig): Promise<void> {
+    async addConnection(client: PlatformClient, config: ConnectionConfig, agentMiddlewares?: Array<(input: any, next: any) => any>): Promise<void> {
         // Set up message handler
         client.on('message', async (message) => {
             try {
-                const response = await this.router.routeMessage(message);
+                // Pass provided middlewares to the router
+                const response = await this.router.routeMessage(message, agentMiddlewares);
 
                 if (response.content && response.content.trim().length > 0) {
                     await client.sendMessage(message.userId, response.content);
                 } else {
                     console.warn('⚠️ Agent returned empty content');
-                    // Optional: send a debug message or just ignore
-                    // await client.sendMessage(message.userId, "(No response text from agent)");
                 }
             } catch (error) {
                 console.error(`❌ Error routing message:`, error);
@@ -46,11 +45,8 @@ export class Gateway {
             }
         });
 
-        // Start the client
-        await client.start();
         this.clients.set(config.id, client);
-
-        console.log(`✅ Connection ${config.id} (${config.platform}) started`);
+        console.log(`✅ Connection ${config.id} (${config.platform}) added to gateway`);
     }
 
     /**

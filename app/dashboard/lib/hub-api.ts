@@ -4,6 +4,7 @@ export interface ConnectionRequest {
     token: string;
     agentUrl: string;
     userId?: string;
+    metadata?: any;
 }
 
 export async function createHubConnection(req: ConnectionRequest) {
@@ -61,6 +62,83 @@ export async function listHubConnections(userId: string) {
 
     if (!response.ok) {
         throw new Error("Failed to fetch connections from Hub");
+    }
+
+    return response.json();
+}
+
+export async function updateHubConnection(connectionId: string, metadata: any) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ metadata }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to update connection in Hub");
+    }
+
+    return response.json();
+}
+
+export async function getHubConnectionContexts(connectionId: string) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}/contexts`);
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to fetch contexts from Hub");
+    }
+
+    return response.json();
+}
+
+export async function stopHubConnection(connectionId: string) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}/stop`, {
+        method: "POST",
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || error.detail || "Failed to stop connection in Hub");
+    }
+
+    return response.json();
+}
+
+export async function scanQRCode(connectionId: string) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}/scan-qr`, {
+        method: "POST",
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || error.detail || "Failed to trigger scan in Hub");
+    }
+
+    return response.json();
+}
+
+export async function restartHubConnection(connectionId: string) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}/restart`, {
+        method: "POST",
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || error.detail || "Failed to restart connection in Hub");
     }
 
     return response.json();

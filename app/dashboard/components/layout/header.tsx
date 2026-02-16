@@ -1,6 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -17,15 +23,12 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import {
-    Loader2,
     LogOut,
-    Settings,
     User,
     Sun,
     Moon,
     ChevronDown,
     Shield,
-    Zap,
     LayoutDashboard,
     Github
 } from "lucide-react"
@@ -93,21 +96,28 @@ export function Header() {
 
                     <nav className="flex gap-4 items-center">
                         {mounted && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="rounded-full h-9 w-9 bg-background/50 border border-border/50 hover:bg-accent transition-colors"
-                                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                            >
-                                <Sun className="h-[1.1rem] w-[1.1rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-foreground" />
-                                <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-foreground" />
-                                <span className="sr-only">Toggle theme</span>
-                            </Button>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="rounded-full h-9 w-9 bg-background/50 border border-border/50 hover:bg-accent transition-colors"
+                                            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                                        >
+                                            <Sun className="h-[1.1rem] w-[1.1rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-foreground" />
+                                            <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-foreground" />
+                                            <span className="sr-only">Toggle theme</span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p className="text-[10px] uppercase font-bold tracking-widest">Switch Mode</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         )}
 
-                        {loading ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        ) : user ? (
+                        {loading ? null : user ? (
                             <div className="flex items-center gap-4">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -117,7 +127,7 @@ export function Header() {
                                                     {user?.email?.split('@')[0]}
                                                 </p>
                                                 <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-widest mt-1">
-                                                    PRO ACCOUNT
+                                                    BETA ACCOUNT
                                                 </p>
                                             </div>
                                             <div className="h-7 w-7 rounded-full bg-linear-to-br from-primary/20 to-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">

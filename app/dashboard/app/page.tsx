@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Send, MessageCircle, MessageSquare, Layers, Zap, Globe, Shield, Command, ArrowRight, Github } from "lucide-react";
+import { Send, MessageCircle, MessageSquare, Layers, Zap, Globe, Shield, Command, ArrowRight, Github, Bot, User } from "lucide-react";
 import { OrbitingCircles } from "@/components/ui/orbiting-circles";
 import { Header } from "@/components/layout/header";
 
@@ -63,15 +63,11 @@ export default function Home() {
                             <OrbitingCircles
                                 radius={80}
                                 duration={20}
-                                iconSize={40}
+                                iconSize={50}
                                 className="border-none bg-transparent"
                             >
-                                <div className="p-2 rounded-xl bg-background border border-border shadow-xl">
-                                    <Image src="/platforms/telegram.svg" width={20} height={20} className="h-5 w-5" alt="Telegram" />
-                                </div>
-                                <div className="p-2 rounded-xl bg-background border border-border shadow-xl">
-                                    <Image src="/platforms/whatsapp.svg" width={20} height={20} className="h-5 w-5" alt="WhatsApp" />
-                                </div>
+                                <Image src="/platforms/telegram.svg" width={36} height={36} className="h-9 w-9" alt="Telegram" />
+                                <Image src="/platforms/whatsapp.svg" width={36} height={36} className="h-9 w-9" alt="WhatsApp" />
                             </OrbitingCircles>
 
                             {/* Outer Circle */}
@@ -79,18 +75,14 @@ export default function Home() {
                                 radius={140}
                                 duration={30}
                                 reverse
-                                iconSize={40}
+                                iconSize={50}
                                 className="border-none bg-transparent"
                             >
-                                <div className="p-2 rounded-xl bg-background border border-border shadow-xl">
-                                    <Image src="/platforms/discord.svg" width={20} height={20} className="h-5 w-5" alt="Discord" />
-                                </div>
-                                <div className="p-2 rounded-xl bg-background border border-border shadow-xl">
-                                    <Layers className="h-5 w-5 text-orange-500" />
-                                </div>
-                                <div className="p-2 rounded-xl bg-background border border-border shadow-xl">
-                                    <Zap className="h-5 w-5 text-yellow-500" />
-                                </div>
+                                <Image src="/platforms/discord.svg" width={36} height={36} className="h-9 w-9" alt="Discord" />
+                                <MessageCircle className="h-9 w-9 text-red-500" />
+                                <MessageSquare className="h-9 w-9 text-yellow-500" />
+                                <Bot className="h-9 w-9 text-orange-500" />
+                                <User className="h-9 w-9 text-blue-500" />
                             </OrbitingCircles>
                         </div>
                     </div>
