@@ -21,10 +21,10 @@ interface ContextItem {
 interface ConnectionSettingsProps {
     connectionId: string;
     initialAllowedContexts?: any[]; // DB format: { allowedJid, name, type, image }
-    onBack: () => void;
+    onBack?: () => void;
 }
 
-export default function ConnectionSettings({ connectionId, initialAllowedContexts = [], onBack }: ConnectionSettingsProps) {
+export default function ConnectionSettings({ connectionId, initialAllowedContexts = [], onBack = () => { } }: ConnectionSettingsProps) {
 
     // Helper: Convert DB format (allowedJids array of objects) to Local format
     const mapDbToLocal = (dbList: any[]): ContextItem[] => {

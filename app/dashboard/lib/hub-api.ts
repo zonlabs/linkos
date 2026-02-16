@@ -128,3 +128,18 @@ export async function scanQRCode(connectionId: string) {
 
     return response.json();
 }
+
+export async function restartHubConnection(connectionId: string) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}/restart`, {
+        method: "POST",
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || error.detail || "Failed to restart connection in Hub");
+    }
+
+    return response.json();
+}
