@@ -17,7 +17,6 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import {
-    Loader2,
     LogOut,
     Settings,
     User,
@@ -105,9 +104,7 @@ export function Header() {
                             </Button>
                         )}
 
-                        {loading ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        ) : user ? (
+                        {loading ? null : user ? (
                             <div className="flex items-center gap-4">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>

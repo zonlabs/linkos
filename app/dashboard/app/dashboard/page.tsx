@@ -3,6 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,10 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Plus, Bot, Power, Trash2, ChevronRight, Settings, Shield, ArrowRight } from "lucide-react"
+import { Loader2, Plus, Bot, Power, Trash2, ChevronRight, Settings, Shield, ArrowRight, ArrowLeft } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { Header } from "@/components/layout/header"
 import { toast } from "sonner"
+import ConnectionSettings from "@/components/ConnectionSettings"
 
 export default function DashboardPage() {
     const [user, setUser] = useState<any>(null)
@@ -34,6 +36,7 @@ export default function DashboardPage() {
     const [connStatus, setConnStatus] = useState<string>("initializing")
 
     const [activeTab, setActiveTab] = useState("connections")
+    const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
 
     const supabase = createClient()
     const router = useRouter()
@@ -186,7 +189,7 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground transition-colors duration-500">
+        <>
             {/* QR Modal */}
             {showQR && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-300">
@@ -233,7 +236,7 @@ export default function DashboardPage() {
                 </div>
             )}
 
-            <Header />
+
 
 
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000">
@@ -250,6 +253,14 @@ export default function DashboardPage() {
                             <ChevronRight className="h-3 w-3" />
                             <span className="text-zinc-900 dark:text-white animate-in fade-in slide-in-from-left-2">
                                 New Gateway
+                            </span>
+                        </>
+                    )}
+                    {activeTab === 'settings' && (
+                        <>
+                            <ChevronRight className="h-3 w-3" />
+                            <span className="text-zinc-900 dark:text-white animate-in fade-in slide-in-from-left-2">
+                                Settings
                             </span>
                         </>
                     )}
@@ -347,7 +358,12 @@ export default function DashboardPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-right space-x-1">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10">
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-white/10"
+                                                        onClick={() => {
+                                                            setSelectedConnectionId(conn.id);
+                                                            setActiveTab('settings');
+                                                        }}
+                                                    >
                                                         <Settings className="h-3.5 w-3.5" />
                                                     </Button>
                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" onClick={() => handleDeleteConnection(conn.id)}>
@@ -464,8 +480,18 @@ export default function DashboardPage() {
                             </form>
                         </div>
                     </TabsContent>
+
+                    <TabsContent value="settings" className="animate-in fade-in slide-in-from-right-8 duration-700 w-full overflow-hidden">
+                        {selectedConnectionId && (
+                            <ConnectionSettings
+                                connectionId={selectedConnectionId}
+                                initialAllowedContexts={(connections.find(c => c.id === selectedConnectionId)?.metadata?.allowedContexts as any[]) || []}
+                                onBack={() => setActiveTab('connections')}
+                            />
+                        )}
+                    </TabsContent>
                 </Tabs>
             </main>
-        </div>
+        </>
     )
 }

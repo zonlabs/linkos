@@ -10,12 +10,21 @@ import qrcode from 'qrcode-terminal';
 import pino from 'pino';
 
 import type { PlatformClient, UnifiedMessage, Platform } from '@link-os/types';
+import { normalizeWhatsAppTarget } from './normalize.js';
 
 const VERSION = '0.1.0';
+
+export interface AllowedContext {
+    allowedJid: string; // The JID is stored here
+    name: string;
+    type: string;
+    image?: string;
+}
 
 export interface WhatsAppClientOptions {
     sessionId: string;
     authDir?: string;
+    allowedContexts?: AllowedContext[];
 }
 
 export class WhatsAppClient implements PlatformClient {
@@ -28,11 +37,22 @@ export class WhatsAppClient implements PlatformClient {
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private stopped = false;
 
+    private allowedJids: string[] = [];
+
     constructor(options: WhatsAppClientOptions) {
         this.options = {
             authDir: options.authDir || `.auth/whatsapp/${options.sessionId}`,
             ...options
         };
+
+        // Initialize allowedJids from allowedContexts
+        if (options.allowedContexts && options.allowedContexts.length > 0) {
+            this.allowedJids = options.allowedContexts
+                .map(ctx => normalizeWhatsAppTarget(ctx.allowedJid))
+                .filter((jid): jid is string => !!jid);
+        } else {
+            this.allowedJids = [];
+        }
     }
 
     on(event: 'message' | 'status', handler: any): void {
@@ -49,6 +69,9 @@ export class WhatsAppClient implements PlatformClient {
         const { version } = await fetchLatestBaileysVersion();
 
         console.log(`Using Baileys version: ${version.join('.')}`);
+        if (this.allowedJids.length > 0) {
+            console.log(`🔒 Allowlist enabled: ${this.allowedJids.length} IDs allowed.`);
+        }
 
         this.sock = (makeWASocket as any).default ? (makeWASocket as any).default({
             auth: {
@@ -58,10 +81,9 @@ export class WhatsAppClient implements PlatformClient {
             version,
             logger: this.logger,
             printQRInTerminal: false,
-            browser: ['linkos', 'cli', VERSION],
-            syncFullHistory: false,
+            browser: ['Ubuntu', 'Chrome', '20.0.04'],
+            syncFullHistory: true, // Recommended for better desktop state emulation
             markOnlineOnConnect: false,
-            shouldIgnoreJid: (jid: string) => jid.includes('@broadcast') || jid.includes('@newsletter')
         }) : (makeWASocket as any)({
             auth: {
                 creds: state.creds,
@@ -70,10 +92,9 @@ export class WhatsAppClient implements PlatformClient {
             version,
             logger: this.logger,
             printQRInTerminal: false,
-            browser: ['linkos', 'cli', VERSION],
-            syncFullHistory: false,
+            browser: ['Ubuntu', 'Chrome', '20.0.04'],
+            syncFullHistory: true,
             markOnlineOnConnect: false,
-            shouldIgnoreJid: (jid: string) => jid.includes('@broadcast') || jid.includes('@newsletter')
         });
 
         if (this.sock.ws && typeof this.sock.ws.on === 'function') {
@@ -124,27 +145,88 @@ export class WhatsAppClient implements PlatformClient {
                 if (msg.key.fromMe) continue;
                 if (msg.key.remoteJid === 'status@broadcast') continue;
 
+                const remoteJid = msg.key.remoteJid;
+                const participant = msg.key.participant || remoteJid;
+                const isGroup = remoteJid?.endsWith('@g.us') || false;
+
+                // Allowlist Check
+                if (this.allowedJids.length > 0) {
+                    const isAllowed = this.allowedJids.some(allowed =>
+                        remoteJid?.includes(allowed) || participant?.includes(allowed)
+                    );
+
+                    if (!isAllowed) {
+                        // console.log(`🚫 Ignoring message from unauthorized source: ${remoteJid}`);
+                        continue;
+                    }
+                }
+
+                // Group Mention Policy: Only respond if tagged
+                if (isGroup && this.sock?.user?.id) {
+                    const botJid = normalizeWhatsAppTarget(this.sock.user.id);
+                    const botLid = this.sock.user.lid ? normalizeWhatsAppTarget(this.sock.user.lid) : null;
+
+                    const message = msg.message;
+                    const contextInfo = message?.extendedTextMessage?.contextInfo ||
+                        message?.imageMessage?.contextInfo ||
+                        message?.videoMessage?.contextInfo ||
+                        message?.documentMessage?.contextInfo ||
+                        message?.audioMessage?.contextInfo ||
+                        (message as any)?.contextInfo;
+
+                    const mentions = contextInfo?.mentionedJid || [];
+
+                    // Normalize all mentions and the bot ID for comparison
+                    const isMentioned = mentions.some((m: string) => {
+                        const normM = normalizeWhatsAppTarget(m);
+                        const match = (botJid && normM === botJid) ||
+                            (botLid && normM === botLid) ||
+                            m === this.sock.user.id ||
+                            (this.sock.user.lid && m === this.sock.user.lid);
+
+                        return match;
+                    });
+
+                    // Check if it's a reply to the bot
+                    const quotedParticipant = contextInfo?.participant;
+                    const isReplyToBot = quotedParticipant && (
+                        normalizeWhatsAppTarget(quotedParticipant) === botJid ||
+                        normalizeWhatsAppTarget(quotedParticipant) === botLid ||
+                        quotedParticipant === this.sock.user.id ||
+                        (this.sock.user.lid && quotedParticipant === this.sock.user.lid)
+                    );
+
+                    if (!isMentioned && !isReplyToBot) {
+                        continue;
+                    }
+                }
+
                 const content = this.extractMessageContent(msg);
                 if (!content) continue;
 
                 if (!this.messageHandler) continue;
 
-                const isGroup = msg.key.remoteJid?.endsWith('@g.us') || false;
-
                 const unifiedMessage: UnifiedMessage = {
                     id: msg.key.id || `wa_${Date.now()}`,
                     platform: 'whatsapp',
-                    userId: msg.key.remoteJid?.replace('@s.whatsapp.net', '') || '',
+                    userId: remoteJid || '',
                     sessionId: this.options.sessionId,
                     content,
                     messageType: 'text',
                     timestamp: new Date((msg.messageTimestamp as number) * 1000),
                     metadata: {
-                        pushName: msg.pushName,
-                        jid: msg.key.remoteJid,
-                        isGroup
+                        pushName: msg.pushName || 'Unknown User',
+                        isGroup,
+                        participant: isGroup ? participant : undefined,
+                        jid: remoteJid
                     }
                 };
+
+                // Typing indicator (optional, but keep for UX if stable)
+                try {
+                    // Only start typing if jid is valid
+                    if (remoteJid) await this.startTyping(remoteJid);
+                } catch (e) { /* ignore */ }
 
                 await this.messageHandler(unifiedMessage);
             }
@@ -167,8 +249,43 @@ export class WhatsAppClient implements PlatformClient {
 
     async sendMessage(to: string, text: string): Promise<void> {
         if (!this.sock) throw new Error('Not connected');
-        const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+
+        const jid = normalizeWhatsAppTarget(to);
+        if (!jid) {
+            console.error(`[WhatsApp] Invalid message target: ${to}`);
+            return;
+        }
+
         await this.sock.sendMessage(jid, { text });
+    }
+
+    async startTyping(jid: string): Promise<void> {
+        if (!this.sock) return;
+        await this.sock.sendPresenceUpdate('composing', jid);
+    }
+
+    async stopTyping(jid: string): Promise<void> {
+        if (!this.sock) return;
+        await this.sock.sendPresenceUpdate('paused', jid);
+    }
+
+    async reactToMessage(jid: string, key: any, emoji: string): Promise<void> {
+        if (!this.sock) return;
+        await this.sock.sendMessage(jid, { react: { text: emoji, key } });
+    }
+
+    async markRead(jid: string, key: any): Promise<void> {
+        if (!this.sock) return;
+        await this.sock.readMessages([key]);
+    }
+
+    async updateConfiguration(config: Partial<WhatsAppClientOptions>): Promise<void> {
+        if (config.allowedContexts) {
+            this.allowedJids = config.allowedContexts
+                .map(ctx => normalizeWhatsAppTarget(ctx.allowedJid))
+                .filter((jid): jid is string => !!jid);
+            console.log(`🔄 Configuration updated: Allowlist now has ${this.allowedJids.length} normalized IDs.`);
+        }
     }
 
     async stop(): Promise<void> {
@@ -190,5 +307,51 @@ export class WhatsAppClient implements PlatformClient {
                 console.error(`Failed to delete session directory: ${error.message}`);
             }
         }
+    }
+
+    async getAvailableContexts(): Promise<{ id: string; name: string; type: 'group' | 'user'; image?: string }[]> {
+        if (!this.sock) return [];
+
+        const contexts: { id: string; name: string; type: 'group' | 'user'; image?: string }[] = [];
+
+        try {
+            // Fetch groups
+            const groups = await this.sock.groupFetchAllParticipating();
+            for (const [id, metadata] of Object.entries(groups)) {
+                contexts.push({
+                    id,
+                    name: (metadata as any).subject || 'Unknown Group',
+                    type: 'group'
+                });
+            }
+
+            // Contacts fetching without store is not supported in minimalist mode
+            // We rely on groups and manual entry for now to ensure stability
+        } catch (error) {
+            console.error('Failed to fetch contexts:', error);
+        }
+
+        // Deduplicate
+        const unique = new Map();
+        for (const ctx of contexts) {
+            if (!unique.has(ctx.id)) {
+                unique.set(ctx.id, ctx);
+            }
+        }
+
+        const uniqueContexts = Array.from(unique.values());
+
+        // Fetch Profile Pictures (best effort, parallel)
+        await Promise.all(uniqueContexts.map(async (ctx) => {
+            try {
+                // 'preview' is faster/smaller, 'image' is full size
+                ctx.image = await this.sock.profilePictureUrl(ctx.id, 'preview');
+            } catch (e) {
+                // Ignore error (no profile pic or privacy restricted)
+                ctx.image = undefined;
+            }
+        }));
+
+        return uniqueContexts;
     }
 }

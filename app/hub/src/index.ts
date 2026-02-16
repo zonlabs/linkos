@@ -36,9 +36,12 @@ async function startClient(config: ConnectionConfig) {
     if (config.platform === 'telegram') {
         client = new TelegramClient({ token: config.token });
     } else {
+        // allowedJids in metadata is now the rich object array
+        const allowedContexts = (config.metadata?.allowedContexts as any[]) || [];
         client = new WhatsAppClient({
-            sessionId: config.userId || `session_${Date.now()}`
-        });
+            sessionId: config.userId || `session_${Date.now()}`,
+            allowedContexts
+        } as any);
     }
 
     const connectionObj = { client, config, status: { type: 'initializing' } };
@@ -194,6 +197,7 @@ app.get('/connections', async (req: Request, res: Response) => {
                 platform: conn.platform,
                 userId: conn.user_id,
                 agentUrl: conn.agent_url,
+                metadata: conn.metadata, // Pass metadata to frontend
                 status: activeConn ? activeConn.status.type : 'inactive',
                 createdAt: conn.created_at
             };
@@ -216,6 +220,93 @@ app.get('/connections/:id/status', (req: Request, res: Response) => {
         return;
     }
     res.json(connection.status);
+});
+
+/**
+ * Get connection contexts (groups/chats)
+ */
+app.get('/connections/:id/contexts', async (req: Request, res: Response) => {
+    const connection = connections.get(req.params.id);
+    if (!connection) {
+        res.status(404).json({ error: 'Connection not found' });
+        return;
+    }
+
+    try {
+        if ('getAvailableContexts' in connection.client && typeof (connection.client as any).getAvailableContexts === 'function') {
+            const contexts = await (connection.client as any).getAvailableContexts();
+            res.json(contexts);
+        } else {
+            res.json([]);
+        }
+    } catch (error) {
+        console.error('Error fetching contexts:', error);
+        res.status(500).json({ error: 'Failed to fetch contexts' });
+    }
+});
+
+/**
+ * Update connection configuration
+ */
+app.patch('/connections/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { metadata } = req.body;
+
+        if (!metadata) {
+            res.status(400).json({ error: 'Missing metadata' });
+            return;
+        }
+
+        console.log(`🔍 [Hub PATCH] Updating connection ${id}`);
+
+        // 1. Update in Supabase
+        const { data: currentConn, error: fetchError } = await supabase
+            .from('connections')
+            .select('metadata')
+            .eq('id', id)
+            .single();
+
+        if (fetchError) {
+            console.error(`❌ [Hub PATCH] Supabase fetch error for ${id}:`, fetchError);
+            res.status(404).json({ error: 'Connection not found', details: fetchError });
+            return;
+        }
+
+        const newMetadata = { ...currentConn.metadata, ...metadata };
+
+        const { error: dbError } = await supabase
+            .from('connections')
+            .update({ metadata: newMetadata })
+            .eq('id', id);
+
+        if (dbError) {
+            console.error('❌ Failed to update connection in Supabase:', dbError.message);
+            res.status(500).json({ error: dbError.message });
+            return;
+        }
+
+        // 2. Update active connection if it exists
+        const activeConn = connections.get(id);
+        if (activeConn && activeConn.client.platform === 'whatsapp') {
+            console.log(`🔄 Updating configuration for active connection ${id}`);
+            // Check if updateConfiguration exists
+            if ('updateConfiguration' in activeConn.client && typeof (activeConn.client as any).updateConfiguration === 'function') {
+                await (activeConn.client as any).updateConfiguration({
+                    allowedContexts: newMetadata.allowedContexts // Pass rich objects as allowedContexts
+                });
+            }
+            // Update local config copy
+            activeConn.config.metadata = newMetadata;
+        }
+
+        res.json({ status: 'updated', metadata: newMetadata });
+    } catch (error) {
+        console.error('Error updating connection:', error);
+        res.status(500).json({
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
 });
 
 /**

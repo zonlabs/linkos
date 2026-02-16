@@ -65,3 +65,35 @@ export async function listHubConnections(userId: string) {
 
     return response.json();
 }
+
+export async function updateHubConnection(connectionId: string, metadata: any) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ metadata }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to update connection in Hub");
+    }
+
+    return response.json();
+}
+
+export async function getHubConnectionContexts(connectionId: string) {
+    const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
+
+    const response = await fetch(`${HUB_API_URL}/connections/${connectionId}/contexts`);
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to fetch contexts from Hub");
+    }
+
+    return response.json();
+}
