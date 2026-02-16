@@ -178,4 +178,17 @@ export class WhatsAppClient implements PlatformClient {
             this.sock = null;
         }
     }
+
+    async deleteSession(): Promise<void> {
+        await this.stop();
+        if (this.options.authDir) {
+            const fs = await import('fs/promises');
+            try {
+                await fs.rm(this.options.authDir, { recursive: true, force: true });
+                console.log(`Deleted session directory: ${this.options.authDir}`);
+            } catch (error: any) {
+                console.error(`Failed to delete session directory: ${error.message}`);
+            }
+        }
+    }
 }

@@ -231,6 +231,14 @@ app.delete('/connections/:id', async (req: Request, res: Response) => {
             return;
         }
 
+        if (connection.client.platform === 'whatsapp') {
+            console.log(`🗑️ Cleaning up session for ${id}`);
+            // Check if deleteSession exists (it's in the class but might not be in the interface yet)
+            if ('deleteSession' in connection.client && typeof (connection.client as any).deleteSession === 'function') {
+                await (connection.client as any).deleteSession();
+            }
+        }
+
         await gateway.removeConnection(id);
         connections.delete(id);
 
