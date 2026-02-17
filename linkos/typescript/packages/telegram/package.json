@@ -1,6 +1,6 @@
 {
     "name": "@link-os/telegram",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Telegram platform client for Linkos",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",

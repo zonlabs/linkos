@@ -32,17 +32,15 @@ export class WhatsAppClient implements PlatformClient {
     private sock: any = null;
     private options: WhatsAppClientOptions;
     private reconnecting = false;
-    private logger = (pino as any).default ? (pino as any).default({ level: 'silent' }) : (pino as any)({ level: 'silent' });
+    private logger = (pino as any).default ? (pino as any).default({ level: 'info' }) : (pino as any)({ level: 'info' });
     private messageHandler?: (message: UnifiedMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private stopped = false;
     private isStarting = false;
     private reconnectAttempts = 0;
-    private maxReconnectAttempts = 3;
+    private maxReconnectAttempts = 10;
     private resetTimeout: NodeJS.Timeout | null = null;
     private allowedJids: string[] = [];
-    // TODO: Implement persistent storage to save contacts across restarts.
-    // Currently, contacts are only in-memory and lost on restart.
 
     constructor(options: WhatsAppClientOptions) {
         this.options = {
@@ -82,40 +80,45 @@ export class WhatsAppClient implements PlatformClient {
         }
 
         try {
-            console.log(`[WhatsAppClient] Initializing auth state for ${this.options.sessionId}...`);
+            // console.log(`[WhatsAppClient] Initializing auth state for ${this.options.sessionId}...`);
             const { state, saveCreds } = await useMultiFileAuthState(this.options.authDir!);
-            console.log(`[WhatsAppClient] Fetching latest Baileys version...`);
-            const { version } = await fetchLatestBaileysVersion();
 
-            console.log(`Using Baileys version: ${version.join('.')}`);
-            // ... (rest of start)
-            if (this.allowedJids.length > 0) {
-                console.log(`🔒 Allowlist enabled: ${this.allowedJids.length} IDs allowed.`);
+            // console.log(`[WhatsAppClient] Fetching latest Baileys version...`);
+            let version: [number, number, number];
+            try {
+                const { version: fetchedVersion, isLatest } = await fetchLatestBaileysVersion();
+                version = fetchedVersion;
+                // console.log(`[WhatsAppClient] Using Baileys version: ${version.join('.')} (latest: ${isLatest})`);
+            } catch (vErr) {
+                console.warn('[WhatsAppClient] Failed to fetch latest version, using fallback:', vErr);
+                version = [2, 3000, 1015901307];
             }
 
-            this.sock = (makeWASocket as any).default ? (makeWASocket as any).default({
+            // console.log(`🔒 Allowlist enabled: ${this.allowedJids.length} IDs allowed.`);
+
+            const isDefaultImport = !!(makeWASocket as any).default;
+            const sockOptions = {
                 auth: {
                     creds: state.creds,
-                    keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
+                    keys: makeCacheableSignalKeyStore(state.keys, this.logger as any),
                 },
                 version,
-                logger: this.logger,
+                logger: this.logger as any,
                 printQRInTerminal: false,
-                browser: ['Ubuntu', 'Chrome', '20.0.04'],
-                syncFullHistory: true, // Recommended for better desktop state emulation
-                markOnlineOnConnect: false,
-            }) : (makeWASocket as any)({
-                auth: {
-                    creds: state.creds,
-                    keys: (makeCacheableSignalKeyStore as any)(state.keys, this.logger),
-                },
-                version,
-                logger: this.logger,
-                printQRInTerminal: false,
-                browser: ['Ubuntu', 'Chrome', '20.0.04'],
-                syncFullHistory: true,
-                markOnlineOnConnect: false,
-            });
+                browser: ['Linux', 'Chrome', '130.0.6723.70'] as [string, string, string],
+                syncFullHistory: false,
+                shouldSyncHistoryMessage: () => false,
+                markOnlineOnConnect: false, // DON'T mark online on EC2 to avoid initial sync flags
+                connectTimeoutMs: 120000,
+                defaultQueryTimeoutMs: 120000,
+                keepAliveIntervalMs: 60000,
+                generateHighQualityLinkPreview: false,
+                getMessage: async () => {
+                    return { conversation: 'historical message placeholder' };
+                }
+            };
+
+            this.sock = isDefaultImport ? (makeWASocket as any).default(sockOptions) : makeWASocket(sockOptions);
 
             if (this.sock.ws && typeof this.sock.ws.on === 'function') {
                 this.sock.ws.on('error', (err: Error) => {
@@ -123,68 +126,102 @@ export class WhatsAppClient implements PlatformClient {
                 });
             }
 
-            this.sock.ev.on('connection.update', async (update: any) => {
-                const { connection, lastDisconnect, qr } = update;
+            // Global event processing
+            this.sock.ev.process(async (events: any) => {
+                if (events['connection.update']) {
+                    const update = events['connection.update'];
+                    const { connection, lastDisconnect, qr } = update;
 
-                if (qr) {
-                    console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
-                    qrcode.generate(qr, { small: true });
-                    if (this.statusHandler) {
-                        this.statusHandler({ type: 'qr', data: qr });
+                    if (qr) {
+                        console.log('\n📱 Scan this QR code with WhatsApp (Linked Devices):\n');
+                        qrcode.generate(qr, { small: true });
+                        if (this.statusHandler) {
+                            this.statusHandler({ type: 'qr', data: qr });
+                        }
+                    }
+
+                    if (lastDisconnect?.error) {
+                        const statusCode = (lastDisconnect.error as Boom)?.output?.statusCode;
+                        if (statusCode !== 515) {
+                            console.log(`[WhatsApp] Connection Error Trace (Status: ${statusCode}):`);
+                            console.dir(lastDisconnect.error, { depth: 1 });
+                        }
+
+                        if (statusCode === 515) {
+                            console.warn('⚠️ 515 Stream Error detected. Attempting instant restart to maintain pairing continuity...');
+                            // No session delete here - we want the next socket to resume
+                        }
+                    }
+
+                    if (connection === 'close') {
+                        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+                        console.log(`[WhatsApp] Connection closed. Status: ${statusCode}, Reason: ${lastDisconnect?.error?.message}, Will reconnect: ${shouldReconnect}`);
+
+                        this.isStarting = false; // Reset starting flag so we can retry
+
+                        if (this.resetTimeout) {
+                            clearTimeout(this.resetTimeout);
+                            this.resetTimeout = null;
+                        }
+
+                        if (shouldReconnect && !this.reconnecting && !this.stopped) {
+                            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                                this.reconnectAttempts++;
+                                this.reconnecting = true;
+
+                                // Aggressive restart (500ms) for 515 errors
+                                const reconnectDelay = statusCode === 515 ? 500 : 5000;
+
+                                if (this.statusHandler) {
+                                    this.statusHandler({ type: 'reconnecting', data: { attempt: this.reconnectAttempts, max: this.maxReconnectAttempts } });
+                                }
+
+                                console.log(`Reconnecting (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${reconnectDelay}ms...`);
+                                setTimeout(() => {
+                                    this.reconnecting = false;
+                                    this.start();
+                                }, reconnectDelay);
+                            } else {
+                                console.error(`[WhatsApp] Max reconnection attempts (${this.maxReconnectAttempts}) reached. Stopping.`);
+                                if (this.statusHandler) {
+                                    this.statusHandler({ type: 'disconnected', data: { reason: 'max_retries' } });
+                                }
+                                this.stop();
+                            }
+                        } else if (this.statusHandler && !shouldReconnect) {
+                            this.statusHandler({ type: 'disconnected' });
+                        }
+                    } else if (connection === 'open') {
+                        console.log('✅ Connected to WhatsApp');
+                        this.isStarting = false;
+
+                        if (this.resetTimeout) clearTimeout(this.resetTimeout);
+                        this.resetTimeout = setTimeout(() => {
+                            this.reconnectAttempts = 0;
+                            this.resetTimeout = null;
+                        }, 10000);
+
+                        if (this.statusHandler) {
+                            this.statusHandler({ type: 'connected' });
+                        }
                     }
                 }
 
-                if (connection === 'close') {
-                    const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-                    const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                if (events['creds.update']) {
+                    await saveCreds();
+                }
 
-                    console.log(`Connection closed. Status: ${statusCode}, Will reconnect: ${shouldReconnect}`);
-
-                    if (this.resetTimeout) {
-                        clearTimeout(this.resetTimeout);
-                        this.resetTimeout = null;
-                    }
-
-                    if (shouldReconnect && !this.reconnecting && !this.stopped) {
-                        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-                            this.reconnectAttempts++;
-                            this.reconnecting = true;
-                            if (this.statusHandler) {
-                                this.statusHandler({ type: 'reconnecting', data: { attempt: this.reconnectAttempts, max: this.maxReconnectAttempts } });
-                            }
-                            console.log(`Reconnecting (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}) in 5 seconds...`);
-                            setTimeout(() => {
-                                this.reconnecting = false;
-                                this.start();
-                            }, 5000);
-                        } else {
-                            console.error(`[WhatsApp] Max reconnection attempts (${this.maxReconnectAttempts}) reached. Stopping.`);
-                            if (this.statusHandler) {
-                                this.statusHandler({ type: 'disconnected', data: { reason: 'max_retries' } });
-                            }
-                            this.stop();
+                if (events['messages.upsert']) {
+                    const { messages, type } = events['messages.upsert'];
+                    if (type === 'notify') {
+                        for (const msg of messages) {
+                            await this.handleIncomingMessage(msg);
                         }
-                    } else if (this.statusHandler && !shouldReconnect) {
-                        this.statusHandler({ type: 'disconnected' });
-                    }
-                } else if (connection === 'open') {
-                    console.log('✅ Connected to WhatsApp');
-                    this.isStarting = false;
-
-                    // Only reset attempts after 10 seconds of stable connection
-                    if (this.resetTimeout) clearTimeout(this.resetTimeout);
-                    this.resetTimeout = setTimeout(() => {
-                        this.reconnectAttempts = 0;
-                        this.resetTimeout = null;
-                    }, 10000);
-
-                    if (this.statusHandler) {
-                        this.statusHandler({ type: 'connected' });
                     }
                 }
             });
-
-            this.sock.ev.on('creds.update', saveCreds);
 
         } catch (error) {
             this.isStarting = false;
@@ -193,100 +230,83 @@ export class WhatsAppClient implements PlatformClient {
                 this.statusHandler({ type: 'error', data: error });
             }
         }
+    }
 
-        this.sock.ev.on('messages.upsert', async ({ messages, type }: { messages: any[]; type: string }) => {
-            if (type !== 'notify') return;
+    private async handleIncomingMessage(msg: any): Promise<void> {
+        if (msg.key.fromMe) return;
+        if (msg.key.remoteJid === 'status@broadcast') return;
 
-            for (const msg of messages) {
-                if (msg.key.fromMe) continue;
-                if (msg.key.remoteJid === 'status@broadcast') continue;
+        const remoteJid = msg.key.remoteJid;
+        const participant = msg.key.participant || remoteJid;
+        const isGroup = remoteJid?.endsWith('@g.us') || false;
 
-                const remoteJid = msg.key.remoteJid;
-                const participant = msg.key.participant || remoteJid;
-                const isGroup = remoteJid?.endsWith('@g.us') || false;
+        // Allowlist Check
+        if (this.allowedJids.length > 0) {
+            const isAllowed = this.allowedJids.some(allowed =>
+                remoteJid?.includes(allowed) || participant?.includes(allowed)
+            );
 
-                // Allowlist Check
-                if (this.allowedJids.length > 0) {
-                    const isAllowed = this.allowedJids.some(allowed =>
-                        remoteJid?.includes(allowed) || participant?.includes(allowed)
-                    );
+            if (!isAllowed) return;
+        }
 
-                    if (!isAllowed) {
-                        // console.log(`🚫 Ignoring message from unauthorized source: ${remoteJid}`);
-                        continue;
-                    }
-                }
+        // Group Mention Policy
+        if (isGroup && this.sock?.user?.id) {
+            const botJid = normalizeWhatsAppTarget(this.sock.user.id);
+            const botLid = this.sock.user.lid ? normalizeWhatsAppTarget(this.sock.user.lid) : null;
 
-                // Group Mention Policy: Only respond if tagged
-                if (isGroup && this.sock?.user?.id) {
-                    const botJid = normalizeWhatsAppTarget(this.sock.user.id);
-                    const botLid = this.sock.user.lid ? normalizeWhatsAppTarget(this.sock.user.lid) : null;
+            const message = msg.message;
+            const contextInfo = (message as any)?.extendedTextMessage?.contextInfo ||
+                (message as any)?.imageMessage?.contextInfo ||
+                (message as any)?.videoMessage?.contextInfo ||
+                (message as any)?.documentMessage?.contextInfo ||
+                (message as any)?.audioMessage?.contextInfo ||
+                (message as any)?.contextInfo;
 
-                    const message = msg.message;
-                    const contextInfo = message?.extendedTextMessage?.contextInfo ||
-                        message?.imageMessage?.contextInfo ||
-                        message?.videoMessage?.contextInfo ||
-                        message?.documentMessage?.contextInfo ||
-                        message?.audioMessage?.contextInfo ||
-                        (message as any)?.contextInfo;
+            const mentions = contextInfo?.mentionedJid || [];
 
-                    const mentions = contextInfo?.mentionedJid || [];
+            const isMentioned = mentions.some((m: string) => {
+                const normM = normalizeWhatsAppTarget(m);
+                return (botJid && normM === botJid) ||
+                    (botLid && normM === botLid) ||
+                    m === this.sock.user.id ||
+                    (this.sock.user.lid && m === this.sock.user.lid);
+            });
 
-                    // Normalize all mentions and the bot ID for comparison
-                    const isMentioned = mentions.some((m: string) => {
-                        const normM = normalizeWhatsAppTarget(m);
-                        const match = (botJid && normM === botJid) ||
-                            (botLid && normM === botLid) ||
-                            m === this.sock.user.id ||
-                            (this.sock.user.lid && m === this.sock.user.lid);
+            const quotedParticipant = contextInfo?.participant;
+            const isReplyToBot = quotedParticipant && (
+                normalizeWhatsAppTarget(quotedParticipant) === botJid ||
+                normalizeWhatsAppTarget(quotedParticipant) === botLid ||
+                quotedParticipant === this.sock.user.id ||
+                (this.sock.user.lid && quotedParticipant === this.sock.user.lid)
+            );
 
-                        return match;
-                    });
+            if (!isMentioned && !isReplyToBot) return;
+        }
 
-                    // Check if it's a reply to the bot
-                    const quotedParticipant = contextInfo?.participant;
-                    const isReplyToBot = quotedParticipant && (
-                        normalizeWhatsAppTarget(quotedParticipant) === botJid ||
-                        normalizeWhatsAppTarget(quotedParticipant) === botLid ||
-                        quotedParticipant === this.sock.user.id ||
-                        (this.sock.user.lid && quotedParticipant === this.sock.user.lid)
-                    );
+        const content = this.extractMessageContent(msg);
+        if (!content || !this.messageHandler) return;
 
-                    if (!isMentioned && !isReplyToBot) {
-                        continue;
-                    }
-                }
-
-                const content = this.extractMessageContent(msg);
-                if (!content) continue;
-
-                if (!this.messageHandler) continue;
-
-                const unifiedMessage: UnifiedMessage = {
-                    id: msg.key.id || `wa_${Date.now()}`,
-                    platform: 'whatsapp',
-                    userId: remoteJid || '',
-                    sessionId: this.options.sessionId,
-                    content,
-                    messageType: 'text',
-                    timestamp: new Date((msg.messageTimestamp as number) * 1000),
-                    metadata: {
-                        pushName: msg.pushName || 'Unknown User',
-                        isGroup,
-                        participant: isGroup ? participant : undefined,
-                        jid: remoteJid
-                    }
-                };
-
-                // Typing indicator (optional, but keep for UX if stable)
-                try {
-                    // Only start typing if jid is valid
-                    if (remoteJid) await this.startTyping(remoteJid);
-                } catch (e) { /* ignore */ }
-
-                await this.messageHandler(unifiedMessage);
+        const unifiedMessage: UnifiedMessage = {
+            id: msg.key.id || `wa_${Date.now()}`,
+            platform: 'whatsapp',
+            userId: remoteJid || '',
+            sessionId: this.options.sessionId,
+            content,
+            messageType: 'text',
+            timestamp: new Date((msg.messageTimestamp as number) * 1000),
+            metadata: {
+                pushName: msg.pushName || 'Unknown User',
+                isGroup,
+                participant: isGroup ? participant : undefined,
+                jid: remoteJid
             }
-        });
+        };
+
+        try {
+            if (remoteJid) await this.startTyping(remoteJid);
+        } catch (e) { /* ignore */ }
+
+        await this.messageHandler(unifiedMessage);
     }
 
     private extractMessageContent(msg: any): string | null {
@@ -376,7 +396,6 @@ export class WhatsAppClient implements PlatformClient {
         const contexts: { id: string; name: string; type: 'group' | 'user'; image?: string }[] = [];
 
         try {
-            // 1. Groups from direct fetch (most reliable for groups)
             const groups = await this.sock.groupFetchAllParticipating();
             for (const [id, metadata] of Object.entries(groups)) {
                 contexts.push({
@@ -389,13 +408,10 @@ export class WhatsAppClient implements PlatformClient {
             console.error('Failed to fetch contexts:', error);
         }
 
-        // Fetch Profile Pictures (best effort, parallel)
         await Promise.all(contexts.map(async (ctx) => {
             try {
-                // Only fetch if we don't have one or to refresh
                 ctx.image = await this.sock.profilePictureUrl(ctx.id, 'preview');
             } catch (e) {
-                // Ignore error (no profile pic or privacy restricted)
                 ctx.image = undefined;
             }
         }));

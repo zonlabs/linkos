@@ -548,25 +548,6 @@ export default function DashboardPage() {
                                             </div>
                                         )}
 
-                                        {!isDeveloper && (
-                                            <div className="p-6 rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                                                <div className="flex items-center gap-4">
-                                                    <Key className="h-6 w-6 text-primary" />
-                                                    <div className="space-y-1">
-                                                        <p className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-white/80">LLM Key Sync</p>
-                                                        <p className="text-[10px] text-zinc-500 font-medium">Global API keys will be automatically applied.</p>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="w-full rounded-xl border-dashed border-zinc-300 dark:border-white/10 h-10 text-[9px] font-bold uppercase tracking-widest"
-                                                    onClick={() => setActiveTab('brain')}
-                                                >
-                                                    Configure LLM Keys
-                                                </Button>
-                                            </div>
-                                        )}
 
                                         <div className="space-y-4 pt-4">
                                             <Button

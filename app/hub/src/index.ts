@@ -369,7 +369,7 @@ app.get('/connections', async (req: Request, res: Response) => {
  * Get connection status
  */
 app.get('/connections/:id/status', (req: Request, res: Response) => {
-    const connection = connections.get(req.params.id);
+    const connection = connections.get(req.params.id as string);
     if (!connection) {
         res.status(404).json({ error: 'Connection not found' });
         return;
@@ -381,7 +381,7 @@ app.get('/connections/:id/status', (req: Request, res: Response) => {
  * Get connection contexts (groups/chats)
  */
 app.get('/connections/:id/contexts', async (req: Request, res: Response) => {
-    const connection = connections.get(req.params.id);
+    const connection = connections.get(req.params.id as string);
     if (!connection) {
         res.status(404).json({ error: 'Connection not found' });
         return;
@@ -405,7 +405,7 @@ app.get('/connections/:id/contexts', async (req: Request, res: Response) => {
  */
 app.patch('/connections/:id', async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as any;
         const { metadata } = req.body;
 
         if (!metadata) {
@@ -469,7 +469,7 @@ app.patch('/connections/:id', async (req: Request, res: Response) => {
  */
 app.delete('/connections/:id', async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as any;
         const connection = connections.get(id);
 
         if (!connection) {
@@ -485,7 +485,12 @@ app.delete('/connections/:id', async (req: Request, res: Response) => {
             }
         }
 
-        await gateway.removeConnection(id);
+        try {
+            await gateway.removeConnection(id);
+        } catch (e) {
+            console.error(`⚠️ Error during gateway cleanup for ${id}:`, e);
+            // We still proceed to remove from memory and DB
+        }
         connections.delete(id);
 
         // Remove from Supabase
@@ -512,7 +517,7 @@ app.delete('/connections/:id', async (req: Request, res: Response) => {
  */
 app.post('/connections/:id/stop', async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as any;
         const connection = connections.get(id);
 
         if (!connection) {
@@ -537,8 +542,8 @@ app.post('/connections/:id/stop', async (req: Request, res: Response) => {
  */
 app.post('/connections/:id/scan-qr', async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
-        const connection = connections.get(id);
+        const { id } = req.params as any;
+        const connection = connections.get(id as string);
 
         if (!connection) {
             res.status(404).json({ error: 'Connection not found' });

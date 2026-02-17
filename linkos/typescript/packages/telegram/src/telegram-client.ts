@@ -79,8 +79,12 @@ export class TelegramClient implements PlatformClient {
 
     async stop(): Promise<void> {
         console.log('🛑 Stopping Telegram client...');
-        await this.bot.stop();
-        console.log('✅ Telegram client stopped');
+        try {
+            await this.bot.stop();
+            console.log('✅ Telegram client stopped');
+        } catch (error) {
+            console.warn('⚠️ Telegram client was already stopped or failed to stop:', error instanceof Error ? error.message : error);
+        }
     }
 
     async sendMessage(userId: string, content: string): Promise<void> {
