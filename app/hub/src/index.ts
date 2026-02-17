@@ -1,16 +1,15 @@
 import express, { type Request, type Response } from 'express';
 import cors from 'cors';
-import { createClient } from '@supabase/supabase-js';
 import { Gateway, AGUIClient } from '@link-os/core';
 import { TelegramClient } from '@link-os/telegram';
 import { WhatsAppClient } from '@link-os/whatsapp';
 import type { ConnectionConfig } from '@link-os/types';
 import { from, of, throwError } from 'rxjs';
 import { switchMap, tap, catchError } from 'rxjs/operators';
-import dotenv from 'dotenv';
 import { supabase } from './lib/supabase.js';
-
+import dotenv from 'dotenv';
 dotenv.config();
+
 
 const app = express();
 app.use(express.json());
@@ -37,22 +36,36 @@ const connections = new Map<string, {
  */
 async function startClient(config: ConnectionConfig, autoStart = true) {
     let client;
+
+    // ===============================
+    // 1️⃣ Create Client
+    // ===============================
     if (config.platform === 'telegram') {
         client = new TelegramClient({ token: config.token });
         autoStart = true; // Telegram always auto-starts
     } else {
-        // allowedJids in metadata is now the rich object array
         const allowedContexts = (config.metadata?.allowedContexts as any[]) || [];
+
         client = new WhatsAppClient({
             sessionId: config.userId || config.id,
             allowedContexts
         } as any);
     }
 
-    const connectionObj: { client: any; config: ConnectionConfig; status: { type: string; data?: any } } = {
+    const connectionObj: {
+        client: any;
+        config: ConnectionConfig;
+        status: { type: string; data?: any };
+        llmConfig?: any;
+    } = {
         client,
         config,
-        status: { type: (config.platform === 'whatsapp' && !autoStart) ? 'stopped' : 'initializing' }
+        status: {
+            type:
+                config.platform === 'whatsapp' && !autoStart
+                    ? 'stopped'
+                    : 'initializing'
+        }
     };
 
     if (config.platform === 'telegram') {
@@ -61,46 +74,109 @@ async function startClient(config: ConnectionConfig, autoStart = true) {
 
     connections.set(config.id, connectionObj);
 
-    // Listen for status updates
+    // ===============================
+    // 2️⃣ Load LLM Config from user_settings
+    // ===============================
+    let llmConfig: any = null;
+    console.log(`[Hub] config: ${JSON.stringify(config)}`);
+
+    if (config.userId) {
+        const { data, error } = await supabase
+            .from('user_settings')
+            .select('llm_keys, active_provider')
+            .eq('user_id', config.userId)
+            .maybeSingle();
+
+        console.log(`[Hub] user_settings: ${JSON.stringify(data)}`);
+
+        if (error) {
+            console.error(
+                `[Hub] ❌ Failed to fetch user_settings for ${config.userId}`,
+                error
+            );
+        }
+
+        if (data?.llm_keys && data?.active_provider) {
+            const activeProvider = data.active_provider;
+
+            const providerKey = data.llm_keys[activeProvider];
+
+            if (!providerKey) {
+                console.error(
+                    `[Hub] ❌ Active provider "${activeProvider}" has no API key configured`
+                );
+            } else {
+                llmConfig = {
+                    llm_provider: activeProvider,
+                    llm_api_key: providerKey
+                };
+
+                console.log(
+                    `[Hub] ✅ Loaded LLM config for ${config.userId} (${activeProvider})`
+                );
+            }
+        } else {
+            console.warn(
+                `[Hub] ⚠️ Missing llm_keys or active_provider for ${config.userId}`
+            );
+        }
+    }
+
+    connectionObj.llmConfig = llmConfig;
+
+
+    // ===============================
+    // 3️⃣ Listen for Status Updates
+    // ===============================
     client.on('status', (status: { type: string; data?: any }) => {
         console.log(`📡 Status update for ${config.id}:`, status);
         connectionObj.status = status;
     });
 
-    // Start client if requested
+    // ===============================
+    // 4️⃣ Start Client
+    // ===============================
     if (autoStart) {
         await client.start();
     } else {
-        console.log(`⏳ [Hub] Waiting for manual start for ${config.id} (${config.platform})`);
+        console.log(
+            `⏳ [Hub] Waiting for manual start for ${config.id} (${config.platform})`
+        );
     }
 
-    // Create middleware to inject LLM config
+    // ===============================
+    // 5️⃣ LLM Middleware
+    // ===============================
     const llmMiddleware = (input: any, next: any) => {
-        const llmConfig = (config.metadata as any)?.llm_config;
-        if (llmConfig) {
-            console.log(`[Hub] 💉 Injecting LLM Config for ${config.id}: ${llmConfig.llm_provider}`);
+        if (connectionObj.llmConfig) {
+            console.log(
+                `[Hub] 💉 Injecting LLM Config (${connectionObj.llmConfig.llm_provider})`
+            );
+
             return next.run({
                 ...input,
                 state: {
                     ...input.state,
-                    llm_config: llmConfig
+                    llm_config: connectionObj.llmConfig
                 }
             });
         }
+
         return next.run(input);
     };
 
-    // Create Rate Limit Middleware
-    // Reads limit from metadata (set during connection creation) or defaults to 100
-    const DAILY_LIMIT = (config.metadata as any)?.daily_request_limit || 100;
+    // ===============================
+    // 6️⃣ Rate Limit Middleware
+    // ===============================
+    const DAILY_LIMIT =
+        (config.metadata as any)?.daily_request_limit || 100;
 
     const rateLimitMiddleware = (input: any, next: any) => {
-        // If no user_id (anonymous), skip
         if (!config.userId) return next.run(input);
 
-        // Check usage for TODAY
+        const today = new Date().toISOString().split('T')[0];
+
         const checkUsage = async () => {
-            const today = new Date().toISOString().split('T')[0];
             const { data, error } = await supabase
                 .from('user_daily_usage')
                 .select('request_count')
@@ -111,52 +187,69 @@ async function startClient(config: ConnectionConfig, autoStart = true) {
             if (error) throw error;
 
             const count = data?.request_count || 0;
+
             if (count >= DAILY_LIMIT) {
-                throw new Error(`Rate limit exceeded (${count}/${DAILY_LIMIT})`);
+                throw new Error(
+                    `Rate limit exceeded (${count}/${DAILY_LIMIT})`
+                );
             }
+
             return count;
         };
 
-        // Increment usage
         const incrementUsage = async () => {
-            const today = new Date().toISOString().split('T')[0];
-            // Call the secure RPC function
             const { error } = await supabase.rpc('increment_usage', {
                 user_id_param: config.userId,
                 date_param: today
             });
 
             if (error) {
-                console.error(`[RateLimit] ❌ Failed to update usage for ${config.userId}:`, error);
+                console.error(
+                    `[RateLimit] ❌ Failed to update usage for ${config.userId}:`,
+                    error
+                );
             } else {
-                console.log(`[RateLimit] ✅ Incremented usage for ${config.userId}`);
+                console.log(
+                    `[RateLimit] ✅ Incremented usage for ${config.userId}`
+                );
             }
         };
 
         return from(checkUsage()).pipe(
             switchMap(() => {
-                // If check passes, run next middleware
-
-                // Fire and forget increment usage ONCE (Pay to proceed)
-                incrementUsage().catch((e: any) => console.error('Failed to increment usage:', e));
+                incrementUsage().catch((e: any) =>
+                    console.error('Failed to increment usage:', e)
+                );
 
                 return next.run(input);
             }),
             catchError((err: any) => {
-                console.error(`[RateLimit] Blocked request for ${config.userId}:`, err.message);
-                // Return a structured error response that the agent/frontend can display
+                console.error(
+                    `[RateLimit] Blocked request for ${config.userId}:`,
+                    err.message
+                );
+
                 return of({
                     type: 'error',
-                    content: `⚠️ **Rate Limit Exceeded**\nYou have used your daily limit of ${DAILY_LIMIT} requests.\nPlease upgrade your plan or wait until tomorrow.`
+                    content: `⚠️ **Rate Limit Exceeded**
+You have used your daily limit of ${DAILY_LIMIT} requests.
+Please upgrade your plan or wait until tomorrow.`
                 });
             })
         );
     };
 
-    // Add to gateway with middlewares
-    await gateway.addConnection(client, config, [llmMiddleware, rateLimitMiddleware]);
+    // ===============================
+    // 7️⃣ Add to Gateway
+    // ===============================
+    await gateway.addConnection(client, config, [
+        llmMiddleware,
+        rateLimitMiddleware
+    ]);
+
     return connectionObj;
 }
+
 
 /**
  * Initialize existing connections from Supabase

@@ -15,8 +15,8 @@ import {
 
 const LLM_PROVIDERS = [
     { id: 'openai', label: 'OpenAI', placeholder: 'sk-...', description: 'For GPT-4o, GPT-3.5-Turbo' },
-    { id: 'google', label: 'Google', placeholder: 'AIza...', description: 'For Gemini 1.5 Pro/Flash' },
-    { id: 'claude', label: 'Claude', placeholder: 'sk-ant-...', description: 'For Claude 3.5 Sonnet/Opus' },
+    { id: 'gemini', label: 'Google', placeholder: 'AIza...', description: 'For Gemini 1.5 Pro/Flash' },
+    { id: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-...', description: 'For anthropic 3.5 Sonnet/Opus' },
     { id: 'grok', label: 'Grok', placeholder: 'xai-...', description: 'For Grok-1' },
     { id: 'deepseek', label: 'DeepSeek', placeholder: 'sk-...', description: 'For DeepSeek-V3' },
 ];
@@ -26,7 +26,7 @@ export default function LLMKeySettings() {
     const [keys, setKeys] = useState<Record<string, string>>({
         openai: "",
         google: "",
-        claude: "",
+        anthropic: "",
         grok: "",
         deepseek: ""
     });

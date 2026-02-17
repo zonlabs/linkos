@@ -13,9 +13,9 @@
     },
     "dependencies": {
         "@link-os/core": "^0.1.1",
-        "@link-os/telegram": "^0.1.0",
+        "@link-os/telegram": "^0.1.1",
         "@link-os/types": "^0.1.0",
-        "@link-os/whatsapp": "^0.1.1",
+        "@link-os/whatsapp": "^0.2.3",
         "@supabase/supabase-js": "^2.39.7",
         "dotenv": "^16.4.1",
         "express": "^4.18.2",

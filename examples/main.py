@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
-from copilotkit import LangGraphAGUIAgent
 from agent import graph as agentic_chat_graph
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +22,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-langgraph_agent = LangGraphAGUIAgent(
+langgraph_agent = LangGraphAgent(
         name="mcpAssistant",
         description="An example for an agentic chat flow using LangGraph.",
         graph=agentic_chat_graph,

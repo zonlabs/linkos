@@ -40,7 +40,7 @@ export default function DashboardPage() {
         openai: "",
         google: "",
         grok: "",
-        claude: "",
+        anthropic: "",
         deepseek: ""
     })
 

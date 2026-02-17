@@ -12,17 +12,20 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
       '@link-os/telegram':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@link-os/types':
         specifier: ^0.1.0
         version: 0.1.0
       '@link-os/whatsapp':
-        specifier: ^0.1.1
-        version: 0.1.1(sharp@0.34.5)
+        specifier: ^0.2.3
+        version: 0.2.3(sharp@0.34.5)
       '@supabase/supabase-js':
         specifier: ^2.39.7
         version: 2.95.3
+      cors:
+        specifier: ^2.8.5
+        version: 2.8.6
       dotenv:
         specifier: ^16.4.1
         version: 16.6.1
@@ -33,6 +36,9 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
     devDependencies:
+      '@types/cors':
+        specifier: ^2.8.17
+        version: 2.8.19
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -396,14 +402,14 @@ packages:
   '@link-os/core@0.1.1':
     resolution: {integrity: sha512-TOLmBRW0IYHK1a2WADGgeY7K7ncwZcBAKTk/fsWSmr8qhmAqpb8wHjFGGxalWaCu92x/2ufQ8UcrTPSzjQtQHg==}
 
-  '@link-os/telegram@0.1.0':
-    resolution: {integrity: sha512-MZqNHzxfRQ2eg/MsTwj+Ch29h1k3kNQg8G/5l06SeLQss/pdpXCxKVlsJD69QraioDAuAoK8QwBxcq+Ah/JI5g==}
+  '@link-os/telegram@0.1.1':
+    resolution: {integrity: sha512-Kg+Q9RuIEg2NsW5yG7cQ2YcREeyFBCaUjEgB3WGx/0QCMaMxbtcz5x9DXXoQF2dOeoZHNiCFLMDMrexvtwecCQ==}
 
   '@link-os/types@0.1.0':
     resolution: {integrity: sha512-/TBLiA9kFkTvH2gWvVycwoh/DC4fTMR9vLMjlHrzkwyrKfGNlr1VVyu4jZRRbnnXzdS305CsFwDM6C0UDwKDMA==}
 
-  '@link-os/whatsapp@0.1.1':
-    resolution: {integrity: sha512-kK95dbdOHYdjFCLKMX/g0NctJfc+3yVPcSMk1MUnCJBzVb+HICWDDXFFYE6mBZzApVTKvyGDN8sJVLZrvenxeg==}
+  '@link-os/whatsapp@0.2.3':
+    resolution: {integrity: sha512-VVkZ/3NR70XwPQtKwKMJLtnZl3TNV1HEvK5HmCGNFam/hA1vlNcZZhccGUePXnE3PNf9dcr48hs584INS0LOqQ==}
 
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
@@ -481,6 +487,9 @@ packages:
 
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
+
+  '@types/cors@2.8.19':
+    resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
 
   '@types/express-serve-static-core@4.19.8':
     resolution: {integrity: sha512-02S5fmqeoKzVZCHPZid4b8JH2eM5HzQLZWN2FohQEy/0eXTq8VXZfSN6Pcr3F6N9R/vNrj7cpgbhjie6m/1tCA==}
@@ -616,6 +625,10 @@ packages:
   cookie@0.7.2:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
+
+  cors@2.8.6:
+    resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
+    engines: {node: '>= 0.10'}
 
   curve25519-js@0.0.4:
     resolution: {integrity: sha512-axn2UMEnkhyDUPWOwVKBMVIzSQy2ejH2xRGy1wq81dqRwApXfIzfbE3hIX0ZRFBIihf/KDqK158DLwESu4AK1w==}
@@ -857,6 +870,10 @@ packages:
     peerDependenciesMeta:
       encoding:
         optional: true
+
+  object-assign@4.1.1:
+    resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
+    engines: {node: '>=0.10.0'}
 
   object-inspect@1.13.4:
     resolution: {integrity: sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==}
@@ -1395,7 +1412,7 @@ snapshots:
       '@ag-ui/client': 0.0.45
       '@link-os/types': 0.1.0
 
-  '@link-os/telegram@0.1.0':
+  '@link-os/telegram@0.1.1':
     dependencies:
       '@link-os/types': 0.1.0
       telegraf: 4.16.3
@@ -1406,7 +1423,7 @@ snapshots:
 
   '@link-os/types@0.1.0': {}
 
-  '@link-os/whatsapp@0.1.1(sharp@0.34.5)':
+  '@link-os/whatsapp@0.2.3(sharp@0.34.5)':
     dependencies:
       '@hapi/boom': 10.0.1
       '@link-os/types': 0.1.0
@@ -1505,6 +1522,10 @@ snapshots:
       '@types/node': 20.19.33
 
   '@types/connect@3.4.38':
+    dependencies:
+      '@types/node': 20.19.33
+
+  '@types/cors@2.8.19':
     dependencies:
       '@types/node': 20.19.33
 
@@ -1665,6 +1686,11 @@ snapshots:
   cookie-signature@1.0.7: {}
 
   cookie@0.7.2: {}
+
+  cors@2.8.6:
+    dependencies:
+      object-assign: 4.1.1
+      vary: 1.1.2
 
   curve25519-js@0.0.4: {}
 
@@ -1921,6 +1947,8 @@ snapshots:
   node-fetch@2.7.0:
     dependencies:
       whatwg-url: 5.0.0
+
+  object-assign@4.1.1: {}
 
   object-inspect@1.13.4: {}
 
