@@ -1,52 +1,29 @@
-import type { PlatformClient, ConnectionConfig } from '@link-os/types';
-import { MessageRouter } from './message-router.js';
+import type { ChannelClass, ConnectionConfig, BaseMessage } from '@link-os/types';
+import { AgentProxy } from './agent-proxy.js';
 
 export interface GatewayConfig {
-    agentUrl: string;
+    agentClient: AgentProxy;
 }
 
 /**
- * Main Gateway class that manages platform connections
+ * Gateway - Connection Manager
+ * Tracks active platform connections and handles graceful shutdown.
+ * Note: Message routing logic is handled by the Hub directly.
  */
 export class Gateway {
-    private clients: Map<string, PlatformClient> = new Map();
-    private router: MessageRouter;
+    private clients: Map<string, ChannelClass> = new Map();
 
     constructor(config: GatewayConfig) {
-        this.router = new MessageRouter({ agentUrl: config.agentUrl });
-        console.log(`✅ Gateway initialized with agent: ${config.agentUrl}`);
+        console.log(`✅ Gateway initialized with injected client`);
     }
 
     /**
-     * Add a platform connection
+     * Add a channel connection
      */
-    async addConnection(client: PlatformClient, config: ConnectionConfig, agentMiddlewares?: Array<(input: any, next: any) => any>): Promise<void> {
-        // Set up message handler
-        client.on('message', async (message) => {
-            try {
-                // Pass provided middlewares to the router
-                const response = await this.router.routeMessage(message, agentMiddlewares);
-
-                if (response.content && response.content.trim().length > 0) {
-                    await client.sendMessage(message.userId, response.content);
-                } else {
-                    console.warn('⚠️ Agent returned empty content');
-                }
-            } catch (error) {
-                console.error(`❌ Error routing message:`, error);
-                try {
-                    await client.sendMessage(
-                        message.userId,
-                        `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}`
-                    );
-                } catch (sendError) {
-                    console.error('❌ Failed to send error message to user:', sendError);
-                }
-            }
-        });
-
+    async addConnection(client: ChannelClass, config: ConnectionConfig): Promise<void> {
         this.clients.set(config.id, client);
-        console.log(`✅ Connection ${config.id} (${config.platform}) added to gateway`);
+        console.log(`✅ Connection ${config.id} (${config.channel}) added to gateway`);
+        // Note: Message routing is now handled by the Hub directly
     }
 
     /**
@@ -65,10 +42,16 @@ export class Gateway {
      * Stop all connections
      */
     async stop(): Promise<void> {
-        for (const [id, client] of this.clients) {
-            await client.stop();
-            console.log(`🛑 Stopped connection ${id}`);
-        }
+        const promises = Array.from(this.clients.entries()).map(async ([id, client]) => {
+            try {
+                await client.stop();
+                console.log(`🛑 Stopped connection ${id}`);
+            } catch (error) {
+                console.error(`❌ Failed to stop connection ${id}:`, error);
+            }
+        });
+
+        await Promise.all(promises);
         this.clients.clear();
     }
 }

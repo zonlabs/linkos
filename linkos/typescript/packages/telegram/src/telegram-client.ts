@@ -1,6 +1,6 @@
 import { Telegraf, type Context } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import type { PlatformClient, UnifiedMessage } from '@link-os/types';
+import type { ChannelClass, BaseMessage } from '@link-os/types';
 
 export interface TelegramClientConfig {
     token: string;
@@ -10,10 +10,10 @@ export interface TelegramClientConfig {
 /**
  * Telegram client using Telegraf
  */
-export class TelegramClient implements PlatformClient {
-    readonly platform = 'telegram' as const;
+export class TelegramClient implements ChannelClass {
+    readonly channel = 'telegram' as const;
     private bot: Telegraf;
-    private messageHandler?: (message: UnifiedMessage) => Promise<void>;
+    private messageHandler?: (message: BaseMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private sessionIdPrefix: string;
 
@@ -37,9 +37,9 @@ export class TelegramClient implements PlatformClient {
                 return;
             }
 
-            const message: UnifiedMessage = {
+            const message: BaseMessage = {
                 id: uuidv4(),
-                platform: 'telegram',
+                channel: 'telegram',
                 userId,
                 sessionId: `${this.sessionIdPrefix}_${chatId}`,
                 content: ctx.message.text,

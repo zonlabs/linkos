@@ -12,10 +12,10 @@
         "clean": "rm -rf dist"
     },
     "dependencies": {
-        "@link-os/core": "^0.1.1",
-        "@link-os/telegram": "^0.1.1",
-        "@link-os/types": "^0.1.0",
-        "@link-os/whatsapp": "^0.2.3",
+        "@link-os/core": "link:../../linkos/typescript/packages/core",
+        "@link-os/telegram": "link:../../linkos/typescript/packages/telegram",
+        "@link-os/types": "link:../../linkos/typescript/packages/types",
+        "@link-os/whatsapp": "link:../../linkos/typescript/packages/whatsapp",
         "@supabase/supabase-js": "^2.39.7",
         "dotenv": "^16.4.1",
         "express": "^4.18.2",

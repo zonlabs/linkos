@@ -1,7 +1,7 @@
 /**
- * Platform types
+ * Channel types
  */
-export type Platform = 'telegram' | 'discord' | 'slack' | 'whatsapp';
+export type Channel = 'telegram' | 'discord' | 'slack' | 'whatsapp';
 
 /**
  * Message types
@@ -19,11 +19,11 @@ export interface MessageContext {
 }
 
 /**
- * Unified message format
+ * Base message format
  */
-export interface UnifiedMessage {
+export interface BaseMessage {
     id: string;
-    platform: Platform;
+    channel: Channel;
     userId: string;
     sessionId: string;
     content: string;
@@ -38,7 +38,7 @@ export interface UnifiedMessage {
  */
 export interface ConnectionConfig {
     id: string;
-    platform: Platform;
+    channel: Channel;
     token: string;
     agentUrl: string;
     userId?: string;
@@ -56,14 +56,14 @@ export interface AgentResponse {
 }
 
 /**
- * Platform client interface
+ * Channel class interface
  */
-export interface PlatformClient {
-    platform: Platform;
+export interface ChannelClass {
+    channel: Channel;
     start(): Promise<void>;
     stop(): Promise<void>;
     sendMessage(userId: string, content: string): Promise<void>;
-    on(event: 'message', handler: (message: UnifiedMessage) => Promise<void>): void;
+    on(event: 'message', handler: (message: BaseMessage) => Promise<void>): void;
     on(event: 'status', handler: (status: { type: string; data?: any }) => void): void;
 }
 
@@ -71,5 +71,5 @@ export interface PlatformClient {
  * Agent client interface
  */
 export interface AgentClient {
-    sendMessage(message: UnifiedMessage): Promise<AgentResponse>;
+    sendMessage(message: BaseMessage): Promise<AgentResponse>;
 }

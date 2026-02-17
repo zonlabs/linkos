@@ -9,7 +9,7 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
 
-import type { PlatformClient, UnifiedMessage, Platform } from '@link-os/types';
+import type { ChannelClass, BaseMessage, Channel } from '@link-os/types';
 import { normalizeWhatsAppTarget } from './normalize.js';
 
 const VERSION = '0.1.0';
@@ -27,13 +27,13 @@ export interface WhatsAppClientOptions {
     allowedContexts?: AllowedContext[];
 }
 
-export class WhatsAppClient implements PlatformClient {
-    readonly platform = 'whatsapp' as const;
+export class WhatsAppClient implements ChannelClass {
+    readonly channel = 'whatsapp' as const;
     private sock: any = null;
     private options: WhatsAppClientOptions;
     private reconnecting = false;
     private logger = (pino as any).default ? (pino as any).default({ level: 'info' }) : (pino as any)({ level: 'info' });
-    private messageHandler?: (message: UnifiedMessage) => Promise<void>;
+    private messageHandler?: (message: BaseMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private stopped = false;
     private isStarting = false;
@@ -286,9 +286,9 @@ export class WhatsAppClient implements PlatformClient {
         const content = this.extractMessageContent(msg);
         if (!content || !this.messageHandler) return;
 
-        const unifiedMessage: UnifiedMessage = {
+        const baseMessage: BaseMessage = {
             id: msg.key.id || `wa_${Date.now()}`,
-            platform: 'whatsapp',
+            channel: 'whatsapp',
             userId: remoteJid || '',
             sessionId: this.options.sessionId,
             content,
@@ -306,7 +306,7 @@ export class WhatsAppClient implements PlatformClient {
             if (remoteJid) await this.startTyping(remoteJid);
         } catch (e) { /* ignore */ }
 
-        await this.messageHandler(unifiedMessage);
+        await this.messageHandler(baseMessage);
     }
 
     private extractMessageContent(msg: any): string | null {
