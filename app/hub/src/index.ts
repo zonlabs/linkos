@@ -3,6 +3,8 @@ import cors from 'cors';
 import { Gateway, AgentProxy } from '@link-os/core';
 import { TelegramClient } from '@link-os/telegram';
 import { WhatsAppClient } from '@link-os/whatsapp';
+import { DiscordClient } from '@link-os/discord';
+import { SlackClient } from '@link-os/slack';
 import type { ConnectionConfig, BaseMessage } from '@link-os/types';
 import { from, of } from 'rxjs';
 import { switchMap, catchError } from 'rxjs/operators';
@@ -42,7 +44,7 @@ app.use((req, res, next) => {
 
 // Store active connections
 const connections = new Map<string, {
-    client: TelegramClient | WhatsAppClient;
+    client: TelegramClient | WhatsAppClient | DiscordClient | SlackClient;
     config: ConnectionConfig;
     status: { type: string; data?: any };
     llmConfig?: any;
@@ -170,7 +172,7 @@ async function startClient(config: ConnectionConfig, autoStart = true) {
         llmConfig: null as any
     };
 
-    if (config.channel === 'telegram') connectionObj.status.type = 'active';
+    if (['telegram', 'discord', 'slack'].includes(config.channel)) connectionObj.status.type = 'active';
     connections.set(config.id, connectionObj);
 
     // 4. Load & Inject LLM Config
@@ -193,6 +195,21 @@ function createChannelClient(config: ConnectionConfig) {
     if (config.channel === 'telegram') {
         return new TelegramClient({ token: config.token });
     }
+    if (config.channel === 'discord') {
+        return new DiscordClient({
+            token: config.token,
+            respondToAll: (config.metadata?.respondToAll as boolean) ?? false,
+        });
+    }
+    if (config.channel === 'slack') {
+        const meta = config.metadata || {};
+        return new SlackClient({
+            token: config.token,
+            signingSecret: meta.signingSecret as string,
+            appToken: meta.appToken as string,
+        });
+    }
+    // Default: WhatsApp
     return new WhatsAppClient({
         sessionId: config.userId || config.id,
         allowedContexts: (config.metadata?.allowedContexts as any[]) || []
@@ -286,6 +303,8 @@ async function initializeConnections() {
                             autoStart = false;
                         }
                     }
+                    // Discord and Slack use tokens directly — always auto-start like Telegram
+                    // (no local auth file needed)
 
                     await startClient({
                         id: row.id,

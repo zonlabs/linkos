@@ -11,6 +11,12 @@ importers:
       '@link-os/core':
         specifier: link:../../linkos/typescript/packages/core
         version: link:../../linkos/typescript/packages/core
+      '@link-os/discord':
+        specifier: link:../../linkos/typescript/packages/discord
+        version: link:../../linkos/typescript/packages/discord
+      '@link-os/slack':
+        specifier: link:../../linkos/typescript/packages/slack
+        version: link:../../linkos/typescript/packages/slack
       '@link-os/telegram':
         specifier: link:../../linkos/typescript/packages/telegram
         version: link:../../linkos/typescript/packages/telegram

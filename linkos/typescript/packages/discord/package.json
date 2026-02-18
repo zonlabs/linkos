@@ -1,0 +1,29 @@
+{
+    "name": "@link-os/discord",
+    "version": "0.1.0",
+    "description": "Discord platform client for Linkos",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "clean": "rm -rf dist",
+        "prepublishOnly": "pnpm build"
+    },
+    "dependencies": {
+        "@link-os/types": "workspace:*",
+        "discord.js": "^14.16.0",
+        "uuid": "^13.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.3.0"
+    }
+}
