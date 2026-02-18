@@ -8,6 +8,7 @@ import {
     type NewsChannel,
     type ThreadChannel,
     ChannelType,
+    Partials,
 } from 'discord.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChannelClass, BaseMessage } from '@link-os/types';
@@ -60,6 +61,7 @@ export class DiscordClient implements ChannelClass {
                 GatewayIntentBits.MessageContent,
                 GatewayIntentBits.DirectMessages,
             ],
+            partials: [Partials.Channel],
         });
 
         this.setupHandlers();

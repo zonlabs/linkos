@@ -43,6 +43,8 @@ export class SlackClient implements ChannelClass {
     private config: Required<SlackClientConfig>;
     private messageHandler?: (message: BaseMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: unknown }) => void;
+    /** Tracks the latest 'Typing...' message timestamp for each channel/user */
+    private pendingResponses = new Map<string, string>();
 
     constructor(config: SlackClientConfig) {
         this.config = {
@@ -70,11 +72,6 @@ export class SlackClient implements ChannelClass {
         this.app = new App(appOptions);
         this.setupHandlers();
     }
-
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
-
     private setupHandlers(): void {
         // Respond to @mentions in public/private channels
         this.app.event('app_mention', async ({ event, say }: { event: any, say: any }) => {
@@ -105,7 +102,10 @@ export class SlackClient implements ChannelClass {
             };
 
             // Acknowledge immediately (Slack requires a response within 3 seconds)
-            await say({ text: '⏳ Processing...' });
+            const response = await say({ text: '_Typing..._' });
+            if (response && response.ts) {
+                this.pendingResponses.set(event.channel, response.ts);
+            }
             await this.messageHandler(baseMessage);
         });
 
@@ -138,7 +138,10 @@ export class SlackClient implements ChannelClass {
                 },
             };
 
-            await say({ text: '⏳ Processing...' });
+            const response = await say({ text: '_Typing..._' });
+            if (response && response.ts) {
+                this.pendingResponses.set(msg.channel, response.ts);
+            }
             await this.messageHandler(baseMessage);
         });
     }
@@ -188,13 +191,34 @@ export class SlackClient implements ChannelClass {
      */
     async sendMessage(channelId: string, content: string): Promise<void> {
         try {
-            await this.app.client.chat.postMessage({
-                channel: channelId,
-                text: content,
-            });
+            const pendingTs = this.pendingResponses.get(channelId);
+
+            if (pendingTs) {
+                // Remove from map immediately so next message doesn't try to update same TS
+                this.pendingResponses.delete(channelId);
+
+                await this.app.client.chat.update({
+                    channel: channelId,
+                    ts: pendingTs,
+                    text: content,
+                });
+            } else {
+                await this.app.client.chat.postMessage({
+                    channel: channelId,
+                    text: content,
+                });
+            }
         } catch (error) {
-            console.error(`❌ Failed to send Slack message to channel ${channelId}:`, error);
-            throw error;
+            console.error(`❌ Failed to send/update Slack message to channel ${channelId}:`, error);
+            // On failure, try one last postMessage in case update failed (e.g. message deleted)
+            try {
+                await this.app.client.chat.postMessage({
+                    channel: channelId,
+                    text: content,
+                });
+            } catch (postError) {
+                console.error(`❌ Fallback postMessage also failed:`, postError);
+            }
         }
     }
 }
