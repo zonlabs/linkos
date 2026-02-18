@@ -68,3 +68,22 @@ export function normalizeWhatsAppTarget(value: string): string | null {
 
     return null;
 }
+
+/**
+ * Compare two JIDs for allowlist matching.
+ * Supports exact match for groups/LIDs, and suffix match for phone JIDs
+ * to handle missing country codes in the allowlist.
+ */
+export function compareJids(incoming: string | null, allowed: string): boolean {
+    if (!incoming) return false;
+    if (incoming === allowed) return true;
+
+    // If both are s.whatsapp.net, try digit-only suffix match
+    if (incoming.endsWith('@s.whatsapp.net') && allowed.endsWith('@s.whatsapp.net')) {
+        const digitsIncoming = incoming.split('@')[0];
+        const digitsAllowed = allowed.split('@')[0];
+        // Match if one ends with the other (e.g. 91xxxxxxxxxx ends with xxxxxxxxxx)
+        return digitsIncoming.endsWith(digitsAllowed) || digitsAllowed.endsWith(digitsIncoming);
+    }
+    return false;
+}

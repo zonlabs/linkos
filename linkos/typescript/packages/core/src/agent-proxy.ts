@@ -24,31 +24,52 @@ export class AgentProxy extends HttpAgent {
      * Returns a Promise for compatibility with existing platform bridges.
      */
     async sendMessage(message: BaseMessage): Promise<AgentResponse> {
-        // 1. Add user message to history natively
         this.addMessage({
             id: message.id,
             role: 'user',
             content: message.content
         } as any);
 
-        // 2. Use the native runAgent API which handles the full lifecycle
-        const runResult: RunAgentResult = await this.runAgent({
-            runId: `run_${Date.now()}`
-        });
+        /**
+         * Recursively run turns until a response is reached.
+         * Handles tool-calling turns with no content.
+        */
+        const runTurn = async (turn: number): Promise<AgentResponse> => {
+            console.log(`[AgentProxy:${this.threadId}] 🚀 Turn ${turn}...`);
 
-        // 3. Find the assistant's response in newMessages
-        const assistantMsg = runResult.newMessages.find(m => m.role === 'assistant');
+            const runResult = await this.runAgent({
+                runId: `run_${Date.now()}_${turn}`
+            });
 
-        if (!assistantMsg || !assistantMsg.content) {
-            console.warn(`[AgentProxy:${this.threadId}] ⚠️ No assistant response received. New messages:`, runResult.newMessages.length);
-            throw new Error('The agent failed to produce a response. This might be due to missing configuration or an internal error.');
-        }
+            // Find last assistant message with content
+            const assistantMsg = runResult.newMessages
+                .filter(m => m.role === 'assistant' && m.content)
+                .pop();
 
-        return {
-            id: assistantMsg.id,
-            content: assistantMsg.content,
-            role: 'assistant'
+            if (assistantMsg) {
+                console.log(`[AgentProxy:${this.threadId}] ✅ Final turn ${turn}.`);
+                return {
+                    id: assistantMsg.id,
+                    content: assistantMsg.content as string,
+                    role: 'assistant'
+                };
+            }
+
+            // Re-run if agent called tools
+            const toolCalls = runResult.newMessages.some(m =>
+                m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0
+            );
+
+            if (toolCalls) {
+                console.log(`[AgentProxy:${this.threadId}] 🔄 Turn ${turn} (Tool calls).`);
+                return runTurn(turn + 1);
+            }
+
+            console.error(`[AgentProxy:${this.threadId}] ❌ Failed at turn ${turn}.`);
+            throw new Error('Agent failed to produce response.');
         };
+
+        return runTurn(1);
     }
 
     /**

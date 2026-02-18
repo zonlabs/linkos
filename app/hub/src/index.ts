@@ -10,6 +10,16 @@ import { supabase } from './lib/supabase.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Global Error Handlers to prevent Hub crash on unhandled async errors (e.g. from undici/agent communication)
+process.on('uncaughtException', (err) => {
+    console.error('🔥 [Hub] CRITICAL: Uncaught Exception:', err);
+    // In a production app, you might want to restart, but here we prioritize staying alive
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('🔥 [Hub] CRITICAL: Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 
 const app = express();
 app.use(express.json());
@@ -165,10 +175,6 @@ async function startClient(config: ConnectionConfig, autoStart = true) {
 
     // 4. Load & Inject LLM Config
     connectionObj.llmConfig = await fetchUserLlmConfig(config.userId);
-    if (connectionObj.llmConfig) {
-        console.log(`[Hub] 💉 Injecting llm_config for session ${sessionId}`);
-        sessionAgent.state = { ...sessionAgent.state, llm_config: connectionObj.llmConfig };
-    }
 
     // 5. Setup Listeners
     registerClientListeners(connectionObj);
@@ -233,15 +239,21 @@ function registerClientListeners(conn: any) {
             const response = await agent.sendMessage(message);
             if (response.content) {
                 await client.sendMessage(message.userId, response.content);
+            } else {
+                console.warn(`[Hub] ⚠️ Agent returned empty content for ${message.userId}`);
             }
         } catch (error: any) {
             console.error(`[Hub] ❌ Routing/Agent error for ${message.userId}:`, error.message || error);
+            if (error.stack) {
+                console.error(`[Hub] 🕵️ Error Stack:`, error.stack);
+            }
+
             const errorMessage = `⚠️ **Agent Error**\n${error.message || 'An unexpected error occurred.'}`;
             try {
                 console.log(`[Hub] 📣 Sending error to channel for ${message.userId}...`);
                 await client.sendMessage(message.userId, errorMessage);
-            } catch (sendErr) {
-                console.error(`[Hub] ❌ Failed to send error message:`, sendErr);
+            } catch (sendErr: any) {
+                console.error(`[Hub] ❌ Failed to send error message to channel:`, sendErr.message || sendErr);
             }
         }
     });
@@ -305,6 +317,13 @@ app.post('/connections', async (req: Request, res: Response) => {
         const { channel, token, userId, agentUrl, connectionId, metadata } = req.body;
         const id = connectionId || `${channel}_${Date.now()}`;
 
+        // Reject if another active connection already uses this token
+        for (const conn of connections.values()) {
+            if (conn.config.token === token && conn.config.channel === channel) {
+                return res.status(409).json({ error: `This ${channel} bot token is already connected. Each bot token can only have one active connection.` });
+            }
+        }
+
         const config: ConnectionConfig = {
             id,
             channel,
@@ -317,7 +336,7 @@ app.post('/connections', async (req: Request, res: Response) => {
 
         await supabase.from('connections').upsert({
             id,
-            platform: channel, // Map new 'channel' usage to existing 'platform' DB column
+            platform: channel,
             token,
             user_id: userId,
             agent_url: config.agentUrl, status: channel === 'whatsapp' ? 'initializing' : 'active',

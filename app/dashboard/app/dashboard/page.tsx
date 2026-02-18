@@ -173,7 +173,7 @@ export default function DashboardPage() {
             }
             setAdding(false)
         } catch (err: any) {
-            toast.error("Failed to deploy gateway. Please check your token and try again.")
+            toast.error(err.message || "Failed to deploy gateway. Please check your token and try again.")
             setAdding(false)
         }
     }

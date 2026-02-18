@@ -4,7 +4,7 @@ This directory contains examples demonstrating zero-boilerplate integration of L
 
 ## Examples
 
-### 1. LangGraph Agent (`main.py`)
+### 1. LangGraph Agent (`agent.py`)
 Demonstrates integration with a LangGraph agent. Linkos automatically detects the FastAPI event loop and runs in the background.
 
 ### 2. ADK Agent (`adk.py`)
