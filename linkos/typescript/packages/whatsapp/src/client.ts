@@ -9,8 +9,8 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
 
-import type { PlatformClient, UnifiedMessage, Platform } from '@link-os/types';
-import { normalizeWhatsAppTarget } from './normalize.js';
+import type { ChannelClass, BaseMessage, Channel } from '@link-os/types';
+import { normalizeWhatsAppTarget, compareJids } from './normalize.js';
 
 const VERSION = '0.1.0';
 
@@ -27,13 +27,13 @@ export interface WhatsAppClientOptions {
     allowedContexts?: AllowedContext[];
 }
 
-export class WhatsAppClient implements PlatformClient {
-    readonly platform = 'whatsapp' as const;
+export class WhatsAppClient implements ChannelClass {
+    readonly channel = 'whatsapp' as const;
     private sock: any = null;
     private options: WhatsAppClientOptions;
     private reconnecting = false;
     private logger = (pino as any).default ? (pino as any).default({ level: 'info' }) : (pino as any)({ level: 'info' });
-    private messageHandler?: (message: UnifiedMessage) => Promise<void>;
+    private messageHandler?: (message: BaseMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private stopped = false;
     private isStarting = false;
@@ -240,10 +240,25 @@ export class WhatsAppClient implements PlatformClient {
         const participant = msg.key.participant || remoteJid;
         const isGroup = remoteJid?.endsWith('@g.us') || false;
 
+        // PN fallback: Baileys often provides phone numbers in Alt fields when LIDs are used
+        const remoteJidAlt = (msg.key as any).remoteJidAlt;
+        const participantAlt = (msg.key as any).participantAlt;
+        const senderPn = (msg as any).senderPn;
+
         // Allowlist Check
         if (this.allowedJids.length > 0) {
+            const normalizedRemote = remoteJid ? normalizeWhatsAppTarget(remoteJid) : null;
+            const normalizedParticipant = participant ? normalizeWhatsAppTarget(participant) : null;
+            const normalizedRemoteAlt = remoteJidAlt ? normalizeWhatsAppTarget(remoteJidAlt) : null;
+            const normalizedParticipantAlt = participantAlt ? normalizeWhatsAppTarget(participantAlt) : null;
+            const normalizedSenderPn = senderPn ? normalizeWhatsAppTarget(senderPn) : null;
+
             const isAllowed = this.allowedJids.some(allowed =>
-                remoteJid?.includes(allowed) || participant?.includes(allowed)
+                compareJids(normalizedRemote, allowed) ||
+                compareJids(normalizedParticipant, allowed) ||
+                compareJids(normalizedRemoteAlt, allowed) ||
+                compareJids(normalizedParticipantAlt, allowed) ||
+                compareJids(normalizedSenderPn, allowed)
             );
 
             if (!isAllowed) return;
@@ -286,9 +301,9 @@ export class WhatsAppClient implements PlatformClient {
         const content = this.extractMessageContent(msg);
         if (!content || !this.messageHandler) return;
 
-        const unifiedMessage: UnifiedMessage = {
+        const baseMessage: BaseMessage = {
             id: msg.key.id || `wa_${Date.now()}`,
-            platform: 'whatsapp',
+            channel: 'whatsapp',
             userId: remoteJid || '',
             sessionId: this.options.sessionId,
             content,
@@ -306,7 +321,7 @@ export class WhatsAppClient implements PlatformClient {
             if (remoteJid) await this.startTyping(remoteJid);
         } catch (e) { /* ignore */ }
 
-        await this.messageHandler(unifiedMessage);
+        await this.messageHandler(baseMessage);
     }
 
     private extractMessageContent(msg: any): string | null {
@@ -357,8 +372,13 @@ export class WhatsAppClient implements PlatformClient {
 
     async updateConfiguration(config: Partial<WhatsAppClientOptions>): Promise<void> {
         if (config.allowedContexts) {
+            console.log(`[WhatsApp] 🔄 Updating allowlist with ${config.allowedContexts.length} contexts...`);
             this.allowedJids = config.allowedContexts
-                .map(ctx => normalizeWhatsAppTarget(ctx.allowedJid))
+                .map(ctx => {
+                    const norm = normalizeWhatsAppTarget(ctx.allowedJid);
+                    console.log(`  - ${ctx.allowedJid} -> ${norm}`);
+                    return norm;
+                })
                 .filter((jid): jid is string => !!jid);
             console.log(`🔄 Configuration updated: Allowlist now has ${this.allowedJids.length} normalized IDs.`);
         }

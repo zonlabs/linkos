@@ -34,8 +34,11 @@ export default function DashboardPage() {
     // Form states
     const [botToken, setBotToken] = useState("")
     const [agentUrl, setAgentUrl] = useState("http://127.0.0.1:8001/agent")
-    const [platform, setPlatform] = useState("telegram")
+    const [channel, setChannel] = useState("telegram")
     const [adding, setAdding] = useState(false)
+    const [slackSigningSecret, setSlackSigningSecret] = useState("")
+    const [slackAppToken, setSlackAppToken] = useState("")
+    const [discordRespondToAll, setDiscordRespondToAll] = useState(false)
     const [llmKeys, setLlmKeys] = useState({
         openai: "",
         google: "",
@@ -148,11 +151,19 @@ export default function DashboardPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     connectionId: connectionId,
-                    platform,
-                    token: platform === 'whatsapp' ? 'wa-session' : botToken,
+                    channel,
+                    token: channel === 'whatsapp' ? 'wa-session' : botToken,
                     userId: user?.id,
                     agentUrl: isDeveloper ? agentUrl : "http://127.0.0.1:8001/agent",
-                    metadata: {}
+                    metadata: {
+                        ...(channel === 'slack' ? {
+                            signingSecret: slackSigningSecret,
+                            appToken: slackAppToken
+                        } : {}),
+                        ...(channel === 'discord' ? {
+                            respondToAll: discordRespondToAll
+                        } : {})
+                    }
                 }),
             })
 
@@ -164,27 +175,32 @@ export default function DashboardPage() {
             const newConn = await response.json()
             setConnections([newConn, ...connections])
 
-            if (platform === 'whatsapp') {
+            if (channel === 'whatsapp') {
                 setPendingConnId(newConn.id)
                 setShowQR(true)
             } else {
                 setBotToken("")
+                setSlackSigningSecret("")
+                setSlackAppToken("")
+                setDiscordRespondToAll(false)
                 setActiveTab("connections")
             }
             setAdding(false)
         } catch (err: any) {
-            toast.error("Failed to deploy gateway. Please check your token and try again.")
+            toast.error(err.message || "Failed to deploy gateway. Please check your token and try again.")
             setAdding(false)
         }
     }
 
     const handleDeleteConnection = async (id: string) => {
         try {
-            const response = await fetch(`/api/connections?id=${id}`, {
+            const response = await fetch(`/api/connections/${id}`, {
                 method: "DELETE",
             })
             if (response.ok) {
                 setConnections(connections.filter(c => c.id !== id))
+            } else {
+                toast.error("Failed to delete connection.")
             }
         } catch (err) {
             console.error("Delete failed", err)
@@ -226,8 +242,8 @@ export default function DashboardPage() {
         )
     }
 
-    const PlatformIcon = ({ platform }: { platform: string }) => {
-        return <Image src={`/platforms/${platform}.svg`} width={16} height={16} className="h-4 w-4" alt={platform} />
+    const PlatformIcon = ({ channel }: { channel: string }) => {
+        return <Image src={`/platforms/${channel}.svg`} width={16} height={16} className="h-4 w-4" alt={channel} />
     }
 
     return (
@@ -394,8 +410,8 @@ export default function DashboardPage() {
                                             <TableRow key={conn.id} className="border-zinc-50 dark:border-white/5 hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors group">
                                                 <TableCell className="font-medium">
                                                     <div className="flex items-center gap-3 capitalize w-fit px-3 py-1 rounded-full">
-                                                        <PlatformIcon platform={conn.platform} />
-                                                        <span className="text-xs text-zinc-900 dark:text-zinc-100">{conn.platform}</span>
+                                                        <PlatformIcon channel={conn.channel} />
+                                                        <span className="text-xs text-zinc-900 dark:text-zinc-100">{conn.channel}</span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{conn.userId || 'Linked Bot'}</TableCell>
@@ -486,16 +502,16 @@ export default function DashboardPage() {
                                     <div className="space-y-10">
                                         <div className="space-y-4">
                                             <label className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Platform Protocol</label>
-                                            <div className="grid grid-cols-3 gap-3 md:gap-6">
-                                                {['telegram', 'whatsapp', 'discord'].map((p) => (
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                                                {['telegram', 'whatsapp', 'discord', 'slack'].map((p) => (
                                                     <button
                                                         key={p}
                                                         type="button"
-                                                        className={`group relative flex flex-col items-center justify-center gap-4 p-3 rounded-xl border transition-all duration-500 overflow-hidden ${platform === p ? 'bg-primary/10 border-primary/40' : 'bg-muted/40 border-border/40 hover:border-primary/20 hover:bg-muted/60'}`}
-                                                        onClick={() => setPlatform(p)}
+                                                        className={`group relative flex flex-col items-center justify-center gap-4 p-3 rounded-xl border transition-all duration-500 overflow-hidden ${channel === p ? 'bg-primary/10 border-primary/40' : 'bg-muted/40 border-border/40 hover:border-primary/20 hover:bg-muted/60'}`}
+                                                        onClick={() => setChannel(p)}
                                                     >
-                                                        <Image src={`/platforms/${p}.svg`} width={40} height={40} className={`h-10 w-10 transition-all duration-500 ${platform === p ? 'opacity-100 drop-shadow-lg' : 'opacity-50 group-hover:opacity-100'}`} alt={p} />
-                                                        <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${platform === p ? 'text-foreground' : 'text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'}`}>{p}</span>
+                                                        <Image src={`/platforms/${p}.svg`} width={40} height={40} className={`h-10 w-10 transition-all duration-500 ${channel === p ? 'opacity-100 drop-shadow-lg' : 'opacity-50 group-hover:opacity-100'}`} alt={p} />
+                                                        <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${channel === p ? 'text-foreground' : 'text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'}`}>{p}</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -505,25 +521,81 @@ export default function DashboardPage() {
                                     </div>
 
                                     <div className="space-y-10">
-                                        {platform !== 'whatsapp' && (
+                                        {channel !== 'whatsapp' && (
                                             <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                                                <label htmlFor="token" className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Bot Secret Token</label>
+                                                <label htmlFor="token" className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">
+                                                    {channel === 'slack' ? 'Bot User OAuth Token' : 'Bot Secret Token'}
+                                                </label>
                                                 <Input
                                                     id="token"
                                                     type="password"
-                                                    placeholder="e.g. 123456789:ABCDef..."
-                                                    className="bg-zinc-100 dark:bg-black/40 border-zinc-200 dark:border-white/5 focus:border-zinc-400 dark:focus:border-white/20 h-12 rounded-xl text-xs text-foreground"
+                                                    placeholder={channel === 'slack' ? "xoxb-..." : "e.g. 123456789:ABCDef..."}
+                                                    className="bg-zinc-100 dark:bg-black/40 border-zinc-200 dark:border-white/5 focus:border-zinc-400 dark:focus:border-white/20 h-10 rounded-xl text-xs text-foreground"
                                                     value={botToken}
                                                     onChange={(e) => setBotToken(e.target.value)}
                                                     required
                                                 />
-                                                <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-2">
-                                                    <Power className="h-3 w-3" /> Secure long-poll connection via Linkos Relay
-                                                </p>
+                                                {channel === 'slack' ? (
+                                                    <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                        <Key className="h-3 w-3" /> Bot Token from App Settings
+                                                    </p>
+                                                ) : (
+                                                    <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest flex items-center gap-2">
+                                                        <Power className="h-3 w-3" /> Secure long-poll connection via Linkos Relay
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
 
-                                        {platform === 'whatsapp' && (
+                                        {channel === 'slack' && (
+                                            <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                <div className="space-y-4">
+                                                    <label htmlFor="slackSigningSecret" className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Signing Secret</label>
+                                                    <Input
+                                                        id="slackSigningSecret"
+                                                        type="password"
+                                                        placeholder="Your Slack App Signing Secret"
+                                                        className="bg-zinc-100 dark:bg-black/40 border-zinc-200 dark:border-white/5 focus:border-zinc-400 dark:focus:border-white/20 h-10 rounded-xl text-xs text-foreground"
+                                                        value={slackSigningSecret}
+                                                        onChange={(e) => setSlackSigningSecret(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    <label htmlFor="slackAppToken" className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">App-Level Token (Socket Mode)</label>
+                                                    <Input
+                                                        id="slackAppToken"
+                                                        type="password"
+                                                        placeholder="xapp-..."
+                                                        className="bg-zinc-100 dark:bg-black/40 border-zinc-200 dark:border-white/5 focus:border-zinc-400 dark:focus:border-white/20 h-10 rounded-xl text-xs text-foreground"
+                                                        value={slackAppToken}
+                                                        onChange={(e) => setSlackAppToken(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {channel === 'discord' && (
+                                            <div className="flex items-center space-x-3 p-4 rounded-xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 animate-in fade-in slide-in-from-top-4 duration-500">
+                                                <div className="flex items-center h-5">
+                                                    <input
+                                                        id="discordRespondToAll"
+                                                        type="checkbox"
+                                                        className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500"
+                                                        checked={discordRespondToAll}
+                                                        onChange={(e) => setDiscordRespondToAll(e.target.checked)}
+                                                    />
+                                                </div>
+                                                <div className="ml-3 text-xs">
+                                                    <label htmlFor="discordRespondToAll" className="font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-widest text-[9px]">Respond to All Messages</label>
+                                                    <p className="text-zinc-500 text-[10px]">By default, bot only responds to @mentions.</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {channel === 'whatsapp' && (
                                             <div className="p-6 rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 duration-500">
                                                 <Shield className="h-6 w-6 text-zinc-400 dark:text-white/40" />
                                                 <div className="space-y-1">

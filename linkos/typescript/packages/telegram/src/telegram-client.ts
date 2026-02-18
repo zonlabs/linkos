@@ -1,6 +1,6 @@
 import { Telegraf, type Context } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
-import type { PlatformClient, UnifiedMessage } from '@link-os/types';
+import type { ChannelClass, BaseMessage } from '@link-os/types';
 
 export interface TelegramClientConfig {
     token: string;
@@ -10,10 +10,10 @@ export interface TelegramClientConfig {
 /**
  * Telegram client using Telegraf
  */
-export class TelegramClient implements PlatformClient {
-    readonly platform = 'telegram' as const;
+export class TelegramClient implements ChannelClass {
+    readonly channel = 'telegram' as const;
     private bot: Telegraf;
-    private messageHandler?: (message: UnifiedMessage) => Promise<void>;
+    private messageHandler?: (message: BaseMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: any }) => void;
     private sessionIdPrefix: string;
 
@@ -37,9 +37,9 @@ export class TelegramClient implements PlatformClient {
                 return;
             }
 
-            const message: UnifiedMessage = {
+            const message: BaseMessage = {
                 id: uuidv4(),
-                platform: 'telegram',
+                channel: 'telegram',
                 userId,
                 sessionId: `${this.sessionIdPrefix}_${chatId}`,
                 content: ctx.message.text,
@@ -66,15 +66,27 @@ export class TelegramClient implements PlatformClient {
 
     async start(): Promise<void> {
         console.log('🤖 Starting Telegram client...');
-        // Launch in background without blocking
+
+        // launch() resolves on shutdown, not on connect — run it in the background
         this.bot.launch().then(() => {
-            console.log('✅ Telegram client connected');
-            if (this.statusHandler) {
-                this.statusHandler({ type: 'connected' });
-            }
+            console.log('🛑 Telegram polling stopped');
         }).catch((err) => {
             console.error('❌ Failed to connect Telegram client:', err);
+            if (this.statusHandler) {
+                this.statusHandler({ type: 'error', data: err });
+            }
         });
+
+        // getMe() confirms the bot is authenticated and reachable
+        try {
+            const me = await this.bot.telegram.getMe();
+            console.log(`✅ Connected to Telegram as @${me.username}`);
+            if (this.statusHandler) {
+                this.statusHandler({ type: 'active' });
+            }
+        } catch (err) {
+            console.error('❌ Telegram connection verification failed:', err);
+        }
     }
 
     async stop(): Promise<void> {

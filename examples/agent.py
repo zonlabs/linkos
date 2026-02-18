@@ -1,34 +1,149 @@
 """
-A powerful LangGraph agent that uses Exa and multiple MCP servers via
-langchain-mcp-adapters, and can dynamically configure its LLM using llm_config
-in conjunction with ChatLiteLLM (LiteLLM).
-
-This agent is designed for messaging platforms (e.g. WhatsApp, Telegram):
-- Users should feel like they are talking to a real person, not an AI.
-- Use a natural, human, conversational tone (short, direct, friendly).
-- Avoid meta-AI phrases like "As an AI" or "I am an AI model".
-- When someone addresses a specific user with an @handle (e.g. @example_user),
-  you should respond on behalf of that person in the first person, as if you
-  are that user, unless doing so would be harmful or clearly wrong.
+A cleaner agent.py consolidating the LangChain/LangGraph agent logic.
 """
 
-import asyncio
 import os
+import uvicorn
+import asyncio
+from typing import Any, Dict, Optional, List
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, Optional, List
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import nest_asyncio
 
-from langchain_litellm import ChatLiteLLM
-from langchain_core.messages import SystemMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import START, StateGraph
-from langgraph.graph import MessagesState
+load_dotenv()
+nest_asyncio.apply()
+
+from ag_ui_langgraph import add_langgraph_fastapi_endpoint, LangGraphAgent
+from copilotkit import CopilotKitMiddleware, LangGraphAGUIAgent
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from deepagents import create_deep_agent
+from langgraph.checkpoint.memory import MemorySaver
+from langchain_litellm import ChatLiteLLM
 
+from mcp_utils import make_serializable
+
+# ---------------------------------------------------------------------------
+# Library Monkeypatch (Temporary fix for ag-ui-langgraph bug)
+# ---------------------------------------------------------------------------
+import uuid
+import json
+from langchain_core.messages import ToolMessage
+try:
+    from langgraph.prebuilt import Command
+except ImportError:
+    Command = None
+from ag_ui_langgraph.agent import LangGraphAgent, EventType, ToolCallStartEvent, ToolCallArgsEvent, ToolCallEndEvent, ToolCallResultEvent, normalize_tool_content, dump_json_safe
+
+async def _patched_handle_single_event(self, event, state):
+    """
+    Patched event handler to fix crash when tools return non-object outputs (like raw lists/strings).
+    This logic handles ToolCallResultEvent safely by extracting tool_call_id from multiple sources.
+    """
+    event_type = event.get("event")
+    
+    # We only care about overriding the OnToolEnd logic
+    if event_type == "on_tool_end":
+        tool_call_output = event["data"]["output"]
+
+        # Handle Command objects (LangGraph native)
+        if Command is not None and isinstance(tool_call_output, Command):
+            messages = tool_call_output.update.get('messages', [])
+            tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
+            for tool_msg in tool_messages:
+                yield self._dispatch_event(ToolCallResultEvent(
+                    type=EventType.TOOL_CALL_RESULT,
+                    tool_call_id=tool_msg.tool_call_id,
+                    message_id=str(uuid.uuid4()),
+                    content=normalize_tool_content(tool_msg.content),
+                    role="tool"
+                ))
+            return
+
+        # Handle direct ToolMessage output
+        if isinstance(tool_call_output, ToolMessage):
+            yield self._dispatch_event(ToolCallResultEvent(
+                type=EventType.TOOL_CALL_RESULT,
+                tool_call_id=tool_call_output.tool_call_id,
+                message_id=str(uuid.uuid4()),
+                content=normalize_tool_content(tool_call_output.content),
+                role="tool"
+            ))
+            return
+
+        # Handle raw output fallback (The Fix)
+        # 1. Start events
+        if not self.active_run["has_function_streaming"]:
+            input_data = event.get("data", {}).get("input") or {}
+            tool_call_id = (
+                event.get("metadata", {}).get("langgraph_tool_call_id") or
+                input_data.get("id") or
+                input_data.get("tool_call_id") or
+                event.get("run_id")
+            )
+            yield self._dispatch_event(ToolCallStartEvent(
+                type=EventType.TOOL_CALL_START,
+                tool_call_id=tool_call_id,
+                tool_call_name=event["data"].get("name", "tool"),
+                parent_message_id=tool_call_id,
+                raw_event=event
+            ))
+            yield self._dispatch_event(ToolCallArgsEvent(
+                type=EventType.TOOL_CALL_ARGS,
+                tool_call_id=tool_call_id,
+                delta=dump_json_safe(input_data),
+                raw_event=event
+            ))
+            yield self._dispatch_event(ToolCallEndEvent(
+                type=EventType.TOOL_CALL_END,
+                tool_call_id=tool_call_id,
+                raw_event=event
+            ))
+
+        # 2. Result event
+        input_data = event.get("data", {}).get("input") or {}
+        tool_call_id = (
+            event.get("metadata", {}).get("langgraph_tool_call_id") or
+            input_data.get("id") or
+            input_data.get("tool_call_id") or
+            event.get("run_id")
+        )
+        yield self._dispatch_event(ToolCallResultEvent(
+            type=EventType.TOOL_CALL_RESULT,
+            tool_call_id=tool_call_id,
+            message_id=str(uuid.uuid4()),
+            content=normalize_tool_content(tool_call_output),
+            role="tool"
+        ))
+        return
+
+    # Use original handler for all other events
+    async def _identity_gen(gen):
+        for item in gen:
+            yield item
+            
+    # However, since _handle_single_event is a standard generator, we can just call the original
+    # but the original is private so we have to be careful.
+    # Actually, it's easier to just call the original implementation for non-tool-end events.
+    # But since we've already replaced it, we'd need to save the original.
+    
+# Save original and apply patch
+LangGraphAgent._original_handle_single_event = LangGraphAgent._handle_single_event
+
+def wrapper(self, event, state):
+    if event.get("event") == "on_tool_end":
+        return _patched_handle_single_event(self, event, state)
+    return self._original_handle_single_event(event, state)
+
+LangGraphAgent._handle_single_event = wrapper
+
+# Configuration & Prompt
+# ---------------------------------------------------------------------------
 
 NOW = datetime.now(ZoneInfo("Asia/Kolkata")).isoformat(timespec="seconds")
 
-# Global system prompt injected on every model call (not stored in state)
 SYSTEM_PROMPT = f"""
 You are acting as a real human in messaging apps like WhatsApp and Telegram,
 not as an AI assistant.
@@ -56,135 +171,78 @@ GENERAL:
   clean and human-sounding; don't expose internal tool details.
 """
 
+# MCP Servers Config
+MCP_SERVERS = {
+    "exa": {
+        "transport": "http",
+        "url": "https://mcp.exa.ai/mcp?tools=web_search_exa,deep_search_exa,"
+               "get_code_context_exa,crawling_exa,company_research_exa,"
+               "linkedin_search_exa,deep_researcher_start,deep_researcher_check",
+    },
+    "context7": {
+        "transport": "http",
+        "url": "https://mcp.context7.com/mcp",
+    },
+    "deepwiki": {
+        "transport": "http",
+        "url": "https://mcp.deepwiki.com/mcp",
+    },
+}
 
 # ---------------------------------------------------------------------------
-# MCP configuration (multiple servers)
+# MCP Tools Helper
 # ---------------------------------------------------------------------------
-
-# Fixed public Exa MCP endpoint with useful tools enabled (same as in adk.py)
-EXA_MCP_URL = (
-    "https://mcp.exa.ai/mcp?tools=web_search_exa,deep_search_exa,"
-    "get_code_context_exa,crawling_exa,company_research_exa,"
-    "linkedin_search_exa,deep_researcher_start,deep_researcher_check"
-)
-
-# Additional MCP servers
-CONTEXT7_MCP_URL = "https://mcp.context7.com/mcp"
-DEEPWIKI_MCP_URL = "https://mcp.deepwiki.com/mcp"
-
-
-_MCP_TOOLS: Optional[List[Any]] = None
-
 
 async def get_mcp_tools() -> List[Any]:
-    """
-    Lazily load MCP tools from Exa, Context7, DeepWiki, and Linkup using
-    langchain-mcp-adapters. Cached after first load.
-    """
-    global _MCP_TOOLS
-    if _MCP_TOOLS is not None:
-        return _MCP_TOOLS
-
-    servers: Dict[str, Dict[str, Any]] = {
-        "exa": {
-            "transport": "http",
-            "url": EXA_MCP_URL,
-        },
-        "context7": {
-            "transport": "http",
-            "url": CONTEXT7_MCP_URL,
-        },
-        "deepwiki": {
-            "transport": "http",
-            "url": DEEPWIKI_MCP_URL,
-        },
-    }
-
-    client = MultiServerMCPClient(servers)
-    _MCP_TOOLS = await client.get_tools()
-    return _MCP_TOOLS
-
-
-# ---------------------------------------------------------------------------
-# LangGraph state and model node
-# ---------------------------------------------------------------------------
-
-class AgentState(MessagesState):
-    """
-    LangGraph state that:
-    - Tracks conversation messages (from MessagesState)
-    - Optionally carries llm_config injected by LinkOS Hub:
-        {
-          "llm_provider": "...",
-          "llm_api_key": "..."
-        }
-    """
-
-    llm_config: Optional[Dict[str, Any]]
-
-
-async def call_model(state: AgentState) -> Dict[str, Any]:
-    """
-    Core model node.
-
-    Uses llm_config from state (if present) to configure the underlying LLM.
-    For now we support OpenAI via ChatLiteLLM and allow overriding the API key
-    by setting the appropriate environment variable dynamically.
-    """
-    llm_config = state.get("llm_config") or {}
-    provider = (llm_config.get("llm_provider") or "").lower()
-    api_key = llm_config.get("llm_api_key")
-
-    # Default model: OpenAI gpt-4o using env-based key
-    model_name = "gpt-4o-mini"
-
-    # Configure provider-specific API keys for LiteLLM if provided
-    if provider == "openai" and api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
-        model_name = "gpt-4o-mini"
-    elif provider == "anthropic" and api_key:
-        os.environ["ANTHROPIC_API_KEY"] = api_key
-        model_name = "claude-3-sonnet-20240229"
-    elif provider == "deepseek" and api_key:
-        os.environ["DEEPSEEK_API_KEY"] = api_key
-        model_name = "deepseek-chat"
-    elif provider == "google" and api_key:
-        os.environ["GOOGLE_API_KEY"] = api_key
-        model_name = "gemini-2.0-flash"
-
-    llm = ChatLiteLLM(model=model_name)
-
-    # Bind MCP tools so the agent can call them when useful
-    mcp_tools = await get_mcp_tools()
-    bound_llm = llm.bind_tools(mcp_tools)
-
-    # LangGraph MessagesState expects a list of messages
-    messages: List[Any] = state["messages"]
-
-    # Prepend our global system prompt for the model only (do NOT store it
-    # back into state, so it isn't duplicated across turns).
-    model_messages: List[Any] = [SystemMessage(content=SYSTEM_PROMPT)] + messages
-
-    response = await bound_llm.ainvoke(model_messages)
-    # Log the model response content for observability
     try:
-        resp_text = getattr(response, "content", str(response))
-        print(f"🧠 Agent response: {str(resp_text)[:500]}")
-    except Exception:
-        pass
-
-    return {"messages": messages + [response]}
-
+        client = MultiServerMCPClient(MCP_SERVERS)
+        raw_tools = await client.get_tools()
+        # Wrap tools to make them serializable for MemorySaver
+        return make_serializable(raw_tools, MCP_SERVERS)
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to fetch MCP tools: {e}")
+        return []
 
 # ---------------------------------------------------------------------------
-# Compile LangGraph
+# FastAPI setup
 # ---------------------------------------------------------------------------
 
-memory = MemorySaver()
+app = FastAPI(title="Linkos LangGraph Agent")
 
-builder = StateGraph(AgentState)
-builder.add_node("call_model", call_model)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-builder.add_edge(START, "call_model")
+# Fetch MCP tools for agent configuration
+def load_tools():
+    try:
+        # nest_asyncio allows asyncio.run() even if a loop is already running
+        return asyncio.run(get_mcp_tools())
+    except Exception as e:
+        print(f"⚠️ Error loading tools: {e}")
+        return []
 
-graph = builder.compile(checkpointer=memory)
+_mcp_tools = load_tools()
+
+# Create the agent logic
+agent_graph = create_deep_agent(
+    model=ChatLiteLLM(model="gpt-4o"),
+    tools=_mcp_tools,
+    middleware=[CopilotKitMiddleware()], 
+    system_prompt=SYSTEM_PROMPT,
+    checkpointer=MemorySaver()
+)
+
+add_langgraph_fastapi_endpoint(
+    app=app,
+    agent=LangGraphAgent(
+        name="sample_agent",
+        description="An example agent to use as a starting point for your own agent.",
+        graph=agent_graph,
+    ),
+    path="/agent",
+)

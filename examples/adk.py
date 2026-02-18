@@ -112,11 +112,11 @@ sample_agent = LlmAgent(
  """,
     tools=[
         get_llm,
-        # McpToolset(
-        #     connection_params=StreamableHTTPConnectionParams(
-        #         url="https://mcp.exa.ai/mcp?tools=web_search_exa,deep_search_exa,get_code_context_exa,crawling_exa,company_research_exa,linkedin_search_exa,deep_researcher_start,deep_researcher_check",
-        #     ),
-        # ),
+        McpToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url="https://mcp.exa.ai/mcp?tools=web_search_exa,deep_search_exa,get_code_context_exa,crawling_exa,company_research_exa,linkedin_search_exa,deep_researcher_start,deep_researcher_check",
+            ),
+        ),
     ],
 )
 

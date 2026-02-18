@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
     try {
         const body = await request.json();
-        const { platform, token, agentUrl, connectionId, userId, metadata } = body;
+        const { channel, token, agentUrl, connectionId, userId, metadata } = body;
 
         // Generate or use provided ID
         const finalId = connectionId || `gw-${Math.random().toString(36).substr(2, 9)}`;
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         // Trigger the Hub service directly
         const connection = await createHubConnection({
             connectionId: finalId,
-            platform,
+            channel,
             token,
             agentUrl,
             userId,
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         // The Hub now returns ConnectionMetadata, which we pass back to the UI
         return NextResponse.json({
             id: connection.id,
-            platform: connection.platform || platform,
+            channel: connection.channel || channel,
             agentUrl: connection.agentUrl || agentUrl,
             status: connection.status || "active",
             created_at: new Date().toISOString()
