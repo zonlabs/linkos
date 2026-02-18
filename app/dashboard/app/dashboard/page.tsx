@@ -34,7 +34,7 @@ export default function DashboardPage() {
     // Form states
     const [botToken, setBotToken] = useState("")
     const [agentUrl, setAgentUrl] = useState("http://127.0.0.1:8001/agent")
-    const [platform, setPlatform] = useState("telegram")
+    const [channel, setChannel] = useState("telegram")
     const [adding, setAdding] = useState(false)
     const [llmKeys, setLlmKeys] = useState({
         openai: "",
@@ -148,8 +148,8 @@ export default function DashboardPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     connectionId: connectionId,
-                    platform,
-                    token: platform === 'whatsapp' ? 'wa-session' : botToken,
+                    channel,
+                    token: channel === 'whatsapp' ? 'wa-session' : botToken,
                     userId: user?.id,
                     agentUrl: isDeveloper ? agentUrl : "http://127.0.0.1:8001/agent",
                     metadata: {}
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             const newConn = await response.json()
             setConnections([newConn, ...connections])
 
-            if (platform === 'whatsapp') {
+            if (channel === 'whatsapp') {
                 setPendingConnId(newConn.id)
                 setShowQR(true)
             } else {
@@ -180,11 +180,13 @@ export default function DashboardPage() {
 
     const handleDeleteConnection = async (id: string) => {
         try {
-            const response = await fetch(`/api/connections?id=${id}`, {
+            const response = await fetch(`/api/connections/${id}`, {
                 method: "DELETE",
             })
             if (response.ok) {
                 setConnections(connections.filter(c => c.id !== id))
+            } else {
+                toast.error("Failed to delete connection.")
             }
         } catch (err) {
             console.error("Delete failed", err)
@@ -226,8 +228,8 @@ export default function DashboardPage() {
         )
     }
 
-    const PlatformIcon = ({ platform }: { platform: string }) => {
-        return <Image src={`/platforms/${platform}.svg`} width={16} height={16} className="h-4 w-4" alt={platform} />
+    const PlatformIcon = ({ channel }: { channel: string }) => {
+        return <Image src={`/platforms/${channel}.svg`} width={16} height={16} className="h-4 w-4" alt={channel} />
     }
 
     return (
@@ -394,8 +396,8 @@ export default function DashboardPage() {
                                             <TableRow key={conn.id} className="border-zinc-50 dark:border-white/5 hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors group">
                                                 <TableCell className="font-medium">
                                                     <div className="flex items-center gap-3 capitalize w-fit px-3 py-1 rounded-full">
-                                                        <PlatformIcon platform={conn.platform} />
-                                                        <span className="text-xs text-zinc-900 dark:text-zinc-100">{conn.platform}</span>
+                                                        <PlatformIcon channel={conn.channel} />
+                                                        <span className="text-xs text-zinc-900 dark:text-zinc-100">{conn.channel}</span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{conn.userId || 'Linked Bot'}</TableCell>
@@ -491,11 +493,11 @@ export default function DashboardPage() {
                                                     <button
                                                         key={p}
                                                         type="button"
-                                                        className={`group relative flex flex-col items-center justify-center gap-4 p-3 rounded-xl border transition-all duration-500 overflow-hidden ${platform === p ? 'bg-primary/10 border-primary/40' : 'bg-muted/40 border-border/40 hover:border-primary/20 hover:bg-muted/60'}`}
-                                                        onClick={() => setPlatform(p)}
+                                                        className={`group relative flex flex-col items-center justify-center gap-4 p-3 rounded-xl border transition-all duration-500 overflow-hidden ${channel === p ? 'bg-primary/10 border-primary/40' : 'bg-muted/40 border-border/40 hover:border-primary/20 hover:bg-muted/60'}`}
+                                                        onClick={() => setChannel(p)}
                                                     >
-                                                        <Image src={`/platforms/${p}.svg`} width={40} height={40} className={`h-10 w-10 transition-all duration-500 ${platform === p ? 'opacity-100 drop-shadow-lg' : 'opacity-50 group-hover:opacity-100'}`} alt={p} />
-                                                        <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${platform === p ? 'text-foreground' : 'text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'}`}>{p}</span>
+                                                        <Image src={`/platforms/${p}.svg`} width={40} height={40} className={`h-10 w-10 transition-all duration-500 ${channel === p ? 'opacity-100 drop-shadow-lg' : 'opacity-50 group-hover:opacity-100'}`} alt={p} />
+                                                        <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${channel === p ? 'text-foreground' : 'text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'}`}>{p}</span>
                                                     </button>
                                                 ))}
                                             </div>
@@ -505,7 +507,7 @@ export default function DashboardPage() {
                                     </div>
 
                                     <div className="space-y-10">
-                                        {platform !== 'whatsapp' && (
+                                        {channel !== 'whatsapp' && (
                                             <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                                                 <label htmlFor="token" className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Bot Secret Token</label>
                                                 <Input
@@ -523,7 +525,7 @@ export default function DashboardPage() {
                                             </div>
                                         )}
 
-                                        {platform === 'whatsapp' && (
+                                        {channel === 'whatsapp' && (
                                             <div className="p-6 rounded-2xl bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex items-center gap-5 animate-in fade-in slide-in-from-top-4 duration-500">
                                                 <Shield className="h-6 w-6 text-zinc-400 dark:text-white/40" />
                                                 <div className="space-y-1">

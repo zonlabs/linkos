@@ -66,15 +66,27 @@ export class TelegramClient implements ChannelClass {
 
     async start(): Promise<void> {
         console.log('🤖 Starting Telegram client...');
-        // Launch in background without blocking
+
+        // launch() resolves on shutdown, not on connect — run it in the background
         this.bot.launch().then(() => {
-            console.log('✅ Telegram client connected');
-            if (this.statusHandler) {
-                this.statusHandler({ type: 'connected' });
-            }
+            console.log('🛑 Telegram polling stopped');
         }).catch((err) => {
             console.error('❌ Failed to connect Telegram client:', err);
+            if (this.statusHandler) {
+                this.statusHandler({ type: 'error', data: err });
+            }
         });
+
+        // getMe() confirms the bot is authenticated and reachable
+        try {
+            const me = await this.bot.telegram.getMe();
+            console.log(`✅ Connected to Telegram as @${me.username}`);
+            if (this.statusHandler) {
+                this.statusHandler({ type: 'active' });
+            }
+        } catch (err) {
+            console.error('❌ Telegram connection verification failed:', err);
+        }
     }
 
     async stop(): Promise<void> {

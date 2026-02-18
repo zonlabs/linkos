@@ -1,6 +1,6 @@
 export interface ConnectionRequest {
     connectionId: string;
-    platform: string;
+    channel: string;
     token: string;
     agentUrl: string;
     userId?: string;

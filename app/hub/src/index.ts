@@ -418,7 +418,11 @@ app.patch('/connections/:id', async (req: Request, res: Response) => {
         }
 
         if ('updateConfiguration' in connection.client) {
-            await (connection.client as any).updateConfiguration(connection.config);
+            const clientConfig: any = {};
+            if (metadata?.allowedContexts) {
+                clientConfig.allowedContexts = metadata.allowedContexts;
+            }
+            await (connection.client as any).updateConfiguration(clientConfig);
         }
 
         // Update in DB
