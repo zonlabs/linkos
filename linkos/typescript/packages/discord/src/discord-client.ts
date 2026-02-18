@@ -99,11 +99,19 @@ export class DiscordClient implements ChannelClass {
         if (!isDM && !isMentioned && !this.config.respondToAll) return;
 
         // Strip the bot mention from the content so the agent gets clean text
+        // Handles both <@ID> and <@!ID> (nickname) formats
         const content = this.client.user
-            ? message.content.replace(`<@${this.client.user.id}>`, '').trim()
+            ? message.content.replace(new RegExp(`<@!?${this.client.user.id}>`, 'g'), '').trim()
             : message.content.trim();
 
         if (!content) return;
+
+        // Show typing indicator in Discord
+        try {
+            await (message.channel as any).sendTyping();
+        } catch (err) {
+            console.warn('[Discord] Failed to send typing indicator:', err);
+        }
 
         // Build a stable session ID:
         //   - Guild channel: "<prefix>_<guildId>_<channelId>"

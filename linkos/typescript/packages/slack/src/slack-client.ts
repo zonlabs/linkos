@@ -1,4 +1,6 @@
-import { App, LogLevel, type AppOptions } from '@slack/bolt';
+import bolt from '@slack/bolt';
+const { App, LogLevel } = bolt;
+import type { AppOptions, App as AppType } from '@slack/bolt';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChannelClass, BaseMessage } from '@link-os/types';
 
@@ -37,7 +39,7 @@ export interface SlackClientConfig {
 export class SlackClient implements ChannelClass {
     readonly channel = 'slack' as const;
 
-    private app: App;
+    private app: AppType;
     private config: Required<SlackClientConfig>;
     private messageHandler?: (message: BaseMessage) => Promise<void>;
     private statusHandler?: (status: { type: string; data?: unknown }) => void;
@@ -75,7 +77,7 @@ export class SlackClient implements ChannelClass {
 
     private setupHandlers(): void {
         // Respond to @mentions in public/private channels
-        this.app.event('app_mention', async ({ event, say }) => {
+        this.app.event('app_mention', async ({ event, say }: { event: any, say: any }) => {
             if (!this.messageHandler) return;
 
             // Strip the bot mention tag from the text
@@ -108,7 +110,7 @@ export class SlackClient implements ChannelClass {
         });
 
         // Respond to direct messages
-        this.app.message(async ({ message, say }) => {
+        this.app.message(async ({ message, say }: { message: any, say: any }) => {
             if (!this.messageHandler) return;
 
             // Only handle DMs (channel_type === 'im')

@@ -8,7 +8,7 @@ import { Activity, AlertTriangle, ShieldCheck } from "lucide-react"
 
 export default function UsageStats() {
     const [usage, setUsage] = useState(0)
-    const [limit, setLimit] = useState(100)
+    const [limit, setLimit] = useState(50)
     const [tier, setTier] = useState<string>('free') // Default to free
     const [loading, setLoading] = useState(true)
     const supabase = createClient()
