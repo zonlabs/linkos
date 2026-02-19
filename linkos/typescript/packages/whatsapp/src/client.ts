@@ -305,7 +305,7 @@ export class WhatsAppClient implements ChannelClass {
             id: msg.key.id || `wa_${Date.now()}`,
             channel: 'whatsapp',
             userId: remoteJid || '',
-            sessionId: this.options.sessionId,
+            sessionId: `${this.options.sessionId}_${remoteJid}`,
             content,
             messageType: 'text',
             timestamp: new Date((msg.messageTimestamp as number) * 1000),

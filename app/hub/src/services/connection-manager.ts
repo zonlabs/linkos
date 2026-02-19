@@ -3,6 +3,7 @@ import { WhatsAppClient } from '@link-os/whatsapp';
 import { DiscordClient } from '@link-os/discord';
 import { SlackClient } from '@link-os/slack';
 import type { ConnectionConfig, BaseMessage } from '@link-os/types';
+import { AgentProxy } from '@link-os/core';
 import { supabase } from '../lib/supabase.js';
 import type { HubContext, ConnectionObject } from '../types.js';
 
@@ -28,8 +29,17 @@ export function registerClientListeners(conn: ConnectionObject) {
 
     client.on('message', async (message: BaseMessage) => {
         try {
-            console.log(`[Hub] 📥 Routing message from ${message.channel} (${message.userId})`);
-            const response = await agent.sendMessage(message);
+            console.log(`[Hub] 📥 Routing message from ${message.channel} (${message.userId}) | Session: ${message.sessionId}`);
+
+            // Get or create isolated session for this user
+            let session = conn.sessionMap.get(message.sessionId);
+            if (!session) {
+                console.log(`[Hub] 👤 Creating new isolated agent session for: ${message.sessionId}`);
+                session = agent.createSession(message.sessionId);
+                conn.sessionMap.set(message.sessionId, session);
+            }
+
+            const response = await session.sendMessage(message);
             if (response.content) {
                 await client.sendMessage(message.userId, response.content);
             } else {
@@ -119,6 +129,7 @@ export async function startClient(
             status: { type: config.channel === 'whatsapp' && !autoStart ? 'stopped' : 'initializing' },
             lastPollAt: Date.now(),
             agent: sessionAgent,
+            sessionMap: new Map<string, AgentProxy>(),
             llmConfig: null
         };
 
