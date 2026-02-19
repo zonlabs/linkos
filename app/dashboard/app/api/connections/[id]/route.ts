@@ -16,9 +16,9 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
 
     try {
         const body = await request.json();
-        const { metadata } = body;
+        const { metadata, token, agentUrl } = body;
 
-        const result = await updateHubConnection(id, metadata);
+        const result = await updateHubConnection(id, metadata, token, agentUrl);
         return NextResponse.json(result);
     } catch (error: any) {
         console.error("[Dashboard API] PATCH error:", error.message);

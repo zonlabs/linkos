@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Send, MessageCircle, MessageSquare, Layers, Zap, Globe, Shield, Command, ArrowRight, Github, Bot, User } from "lucide-react";
+import { Send, Layers, Zap, Globe, Shield, Command, ArrowRight, Github, Bot, User } from "lucide-react";
 import { OrbitingCircles } from "@/components/ui/orbiting-circles";
 import { Header } from "@/components/layout/header";
 
@@ -79,10 +79,9 @@ export default function Home() {
                                 className="border-none bg-transparent"
                             >
                                 <Image src="/platforms/discord.svg" width={36} height={36} className="h-9 w-9" alt="Discord" />
-                                <MessageCircle className="h-9 w-9 text-red-500" />
-                                <MessageSquare className="h-9 w-9 text-yellow-500" />
-                                <Bot className="h-9 w-9 text-orange-500" />
-                                <User className="h-9 w-9 text-blue-500" />
+                                <Image src="/platforms/slack.svg" width={36} height={36} className="h-9 w-9" alt="Slack" />
+                                <Image src="/platforms/signal.svg" width={36} height={36} className="h-9 w-9" alt="Signal" />
+                                {/* <Image src="/platforms/wechat.svg" width={36} height={36} className="h-9 w-9" alt="WeChat" /> */}
                             </OrbitingCircles>
                         </div>
                     </div>

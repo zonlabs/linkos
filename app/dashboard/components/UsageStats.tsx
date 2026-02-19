@@ -6,12 +6,14 @@ import { Progress } from "./ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card"
 import { Activity, AlertTriangle, ShieldCheck } from "lucide-react"
 
-export default function UsageStats() {
+export default function UsageStats({ externalLoading = false }: { externalLoading?: boolean }) {
     const [usage, setUsage] = useState(0)
     const [limit, setLimit] = useState(50)
     const [tier, setTier] = useState<string>('free') // Default to free
-    const [loading, setLoading] = useState(true)
+    const [innerLoading, setInnerLoading] = useState(true)
     const supabase = createClient()
+
+    const isLoading = innerLoading || externalLoading;
 
     useEffect(() => {
         async function fetchStats() {
@@ -42,12 +44,26 @@ export default function UsageStats() {
             if (usageData) {
                 setUsage(usageData.request_count)
             }
-            setLoading(false)
+            setInnerLoading(false)
         }
         fetchStats()
     }, [])
 
-    if (loading) return null
+    if (isLoading) {
+        return (
+            <div className="space-y-4 animate-pulse">
+                <div className="flex items-center justify-between">
+                    <div className="h-4 w-24 bg-zinc-200 dark:bg-zinc-800 rounded" />
+                    <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="h-8 w-12 bg-zinc-200 dark:bg-zinc-800 rounded" />
+                    <div className="h-4 w-16 bg-zinc-200 dark:bg-zinc-800 rounded" />
+                </div>
+                <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded" />
+            </div>
+        )
+    }
 
     const percentage = Math.min((usage / limit) * 100, 100)
     const isCrisis = percentage >= 90

@@ -230,7 +230,7 @@ _mcp_tools = load_tools()
 
 # Create the agent logic
 agent_graph = create_deep_agent(
-    model=ChatLiteLLM(model="gpt-4o"),
+    model=ChatLiteLLM(model="gpt-4o-mini"),
     tools=_mcp_tools,
     middleware=[CopilotKitMiddleware()], 
     system_prompt=SYSTEM_PROMPT,

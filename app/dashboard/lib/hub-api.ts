@@ -20,7 +20,7 @@ export async function createHubConnection(req: ConnectionRequest) {
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || "Failed to create connection in Hub");
+        throw new Error(error.error || error.detail || "Failed to create connection in Hub");
     }
 
     return response.json();
@@ -67,7 +67,7 @@ export async function listHubConnections(userId: string) {
     return response.json();
 }
 
-export async function updateHubConnection(connectionId: string, metadata: any) {
+export async function updateHubConnection(connectionId: string, metadata?: any, token?: string, agentUrl?: string) {
     const HUB_API_URL = process.env.HUB_API_URL || "http://127.0.0.1:8081";
 
     const response = await fetch(`${HUB_API_URL}/connections/${connectionId}`, {
@@ -75,7 +75,7 @@ export async function updateHubConnection(connectionId: string, metadata: any) {
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ metadata }),
+        body: JSON.stringify({ metadata, token, agentUrl }),
     });
 
     if (!response.ok) {
