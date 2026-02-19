@@ -15,15 +15,15 @@ export function registerClientListeners(conn: ConnectionObject) {
     client.on('status', async (status: any) => {
         conn.status = status;
 
-        // Persist final states to DB (skip transient states like 'qr', 'initializing')
-        if (config.channel === 'whatsapp') {
-            if (status.type === 'connected') {
-                await supabase.from('connections').update({ status: 'active' }).eq('id', config.id);
-                console.log(`[Hub] ✅ WhatsApp ${config.id} connected — DB updated to 'active'.`);
-            } else if (status.type === 'stopped' || status.type === 'error') {
-                await supabase.from('connections').update({ status: 'stopped' }).eq('id', config.id);
-            }
-        }
+        // Persist final states to DB (skip transient states like 'qr', 'initializing') // TODO: db calls this keeps firing on restart. 
+        // if (config.channel === 'whatsapp') {
+        //     if (status.type === 'connected') {
+        //         await supabase.from('connections').update({ status: 'active' }).eq('id', config.id);
+        //         console.log(`[Hub] ✅ WhatsApp ${config.id} connected — DB updated to 'active'.`);
+        //     } else if (status.type === 'stopped' || status.type === 'error') {
+        //         await supabase.from('connections').update({ status: 'stopped' }).eq('id', config.id);
+        //     }
+        // }
     });
 
     client.on('message', async (message: BaseMessage) => {
@@ -113,7 +113,7 @@ export async function startClient(
         const sessionId = config.userId || config.id;
         const sessionAgent = agentClient.createSession(sessionId, { agentUrl: config.agentUrl });
 
-        const connectionObj: ConnectionObject = {
+        const connectionObject: ConnectionObject = {
             client,
             config,
             status: { type: config.channel === 'whatsapp' && !autoStart ? 'stopped' : 'initializing' },
@@ -122,17 +122,17 @@ export async function startClient(
             llmConfig: null
         };
 
-        connections.set(config.id, connectionObj);
+        connections.set(config.id, connectionObject);
 
-        connectionObj.llmConfig = await fetchUserLlmConfig(config.userId);
-        registerClientListeners(connectionObj);
+        connectionObject.llmConfig = await fetchUserLlmConfig(config.userId);
+        registerClientListeners(connectionObject);
         await gateway.addConnection(client, config);
 
         if (autoStart) {
             await client.start();
         }
 
-        return connectionObj;
+        return connectionObject;
     } catch (error: any) {
         console.error(`❌ [Hub] Failed to start client for ${config.id}:`, error.message);
         throw error;

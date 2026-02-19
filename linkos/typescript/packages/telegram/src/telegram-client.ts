@@ -101,7 +101,7 @@ export class TelegramClient implements ChannelClass {
 
     async sendMessage(userId: string, content: string): Promise<void> {
         try {
-            await this.bot.telegram.sendMessage(userId, content);
+            await this.bot.telegram.sendMessage(userId, content, { parse_mode: 'Markdown' });
         } catch (error) {
             console.error(`❌ Failed to send Telegram message to ${userId}:`, error);
             throw error;

@@ -1,6 +1,8 @@
 import { HttpAgent, type HttpAgentConfig, type RunAgentResult } from '@ag-ui/client';
 import type { BaseMessage, AgentResponse } from '@link-os/types';
 
+import { formatMessage } from './formatter.js';
+
 /**
  * AgentProxy Configuration
  * Extends the base HttpAgentConfig to allow for future custom options.
@@ -50,7 +52,7 @@ export class AgentProxy extends HttpAgent {
                 console.log(`[AgentProxy:${this.threadId}] ✅ Final turn ${turn}.`);
                 return {
                     id: assistantMsg.id,
-                    content: assistantMsg.content as string,
+                    content: formatMessage(assistantMsg.content as string, message.channel),
                     role: 'assistant'
                 };
             }
