@@ -6,16 +6,12 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import ConnectionSettings from "@/components/ConnectionSettings"
-import LLMKeySettings from "@/components/LLMKeySettings"
 import UsageStats from "@/components/UsageStats"
-import { Loader2, Plus, Bot, Power, Trash2, ChevronRight, Settings, Shield, ArrowRight, Brain, Key } from "lucide-react"
+import { Loader2, Plus, Bot, Power, Trash2, ChevronRight, Settings, Shield, ArrowRight, Key } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
-import { Header } from "@/components/layout/header"
 import { toast } from "sonner"
 import {
     Tooltip,
@@ -25,10 +21,26 @@ import {
 } from "@/components/ui/tooltip"
 
 
+type DashboardUser = {
+    id: string
+    user_metadata?: { is_developer?: boolean }
+}
+
+type ConnectionRecord = {
+    id: string
+    channel: string
+    status: string
+    userId?: string
+    agentUrl?: string
+    metadata?: {
+        allowedContexts?: unknown[]
+    }
+}
+
 export default function DashboardPage() {
-    const [user, setUser] = useState<any>(null)
+    const [user, setUser] = useState<DashboardUser | null>(null)
     const [loading, setLoading] = useState(true)
-    const [connections, setConnections] = useState<any[]>([])
+    const [connections, setConnections] = useState<ConnectionRecord[]>([])
     const [isDeveloper, setIsDeveloper] = useState(false)
 
     // Form states
@@ -39,22 +51,12 @@ export default function DashboardPage() {
     const [slackSigningSecret, setSlackSigningSecret] = useState("")
     const [slackAppToken, setSlackAppToken] = useState("")
     const [discordRespondToAll, setDiscordRespondToAll] = useState(false)
-    const [llmKeys, setLlmKeys] = useState({
-        openai: "",
-        google: "",
-        grok: "",
-        anthropic: "",
-        deepseek: ""
-    })
-
     // QR & Status states
-    const [showQR, setShowQR] = useState(false)
     const [currentQR, setCurrentQR] = useState<string | null>(null)
     const [pendingConnId, setPendingConnId] = useState<string | null>(null)
     const [connStatus, setConnStatus] = useState<string>("initializing")
 
     const [activeTab, setActiveTab] = useState("connections")
-    const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
 
     const supabase = createClient()
     const router = useRouter()
@@ -99,8 +101,6 @@ export default function DashboardPage() {
     useEffect(() => {
         if (!pendingConnId) return
 
-        let pollInterval: NodeJS.Timeout
-
         const checkStatus = async () => {
             try {
                 const res = await fetch(`/api/connections/${pendingConnId}/status`)
@@ -128,11 +128,11 @@ export default function DashboardPage() {
         }
 
         checkStatus()
-        pollInterval = setInterval(checkStatus, 2000)
+        const pollInterval = setInterval(checkStatus, 2000)
 
         // Only clear the interval — Hub janitor handles connection cleanup
         return () => clearInterval(pollInterval)
-    }, [pendingConnId, showQR])
+    }, [pendingConnId])
 
     const handleAddConnection = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -184,8 +184,9 @@ export default function DashboardPage() {
                 setActiveTab("connections")
             }
             setAdding(false)
-        } catch (err: any) {
-            toast.error(err.message || "Failed to deploy gateway. Please check your token and try again.")
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to deploy gateway. Please check your token and try again."
+            toast.error(message)
             setAdding(false)
         }
     }
@@ -218,18 +219,6 @@ export default function DashboardPage() {
         }
     };
 
-    const handleScanQR = async (id: string) => {
-        try {
-            setPendingConnId(id);
-            setConnStatus("initializing");
-            const res = await fetch(`/api/connections/${id}/scan-qr`, { method: "POST" });
-            if (!res.ok) throw new Error(await res.text());
-        } catch (e: any) {
-            console.error("Scan QR failed", e);
-            toast.error(`Failed to start scan: ${e.message}`);
-        }
-    };
-
     const PlatformIcon = ({ channel }: { channel: string }) => {
         return <Image src={`/platforms/${channel}.svg`} width={16} height={16} className="h-4 w-4" alt={channel} />
     }
@@ -259,26 +248,10 @@ export default function DashboardPage() {
                         </span>
                     </>
                 )}
-                {activeTab === 'settings' && (
-                    <>
-                        <ChevronRight className="h-3 w-3" />
-                        <span className="text-zinc-900 dark:text-white animate-in fade-in slide-in-from-left-2">
-                            Settings
-                        </span>
-                    </>
-                )}
-                {activeTab === 'brain' && !isDeveloper && (
-                    <>
-                        <ChevronRight className="h-3 w-3" />
-                        <span className="text-zinc-900 dark:text-white animate-in fade-in slide-in-from-left-2">
-                            LLM API Keys
-                        </span>
-                    </>
-                )}
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                {activeTab === 'connections' && !selectedConnectionId && (
+                {activeTab === 'connections' && (
                     <div className="flex items-center justify-between mb-4">
                         <TabsList className="bg-zinc-100 dark:bg-white/5 p-1 rounded-2xl h-12">
                             <TabsTrigger value="connections" className="rounded-xl px-6 h-10 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-800 data-[state=active]:shadow-sm text-[10px] font-black uppercase tracking-widest">Workspace</TabsTrigger>
@@ -635,31 +608,6 @@ export default function DashboardPage() {
                     </div>
                 </TabsContent>
 
-                <TabsContent value="settings" className="animate-in fade-in slide-in-from-right-8 duration-700 w-full overflow-hidden">
-                    {selectedConnectionId && (
-                        <ConnectionSettings
-                            connectionId={selectedConnectionId}
-                            channel={connections.find(c => c.id === selectedConnectionId)?.channel}
-                            status={connections.find(c => c.id === selectedConnectionId)?.status}
-                            initialAllowedContexts={(connections.find(c => c.id === selectedConnectionId)?.metadata?.allowedContexts as any[]) || []}
-                            initialMetadata={connections.find(c => c.id === selectedConnectionId)?.metadata}
-                            initialToken={connections.find(c => c.id === selectedConnectionId)?.token}
-                            initialAgentUrl={connections.find(c => c.id === selectedConnectionId)?.agentUrl}
-                            onBack={() => setActiveTab('connections')}
-                            onDelete={(id) => {
-                                setConnections(connections.filter(c => c.id !== id));
-                                setSelectedConnectionId(null);
-                                setActiveTab('connections');
-                            }}
-                        />
-                    )}
-                </TabsContent>
-
-                {!isDeveloper && (
-                    <TabsContent value="brain" className="animate-in fade-in slide-in-from-right-8 duration-700 w-full overflow-hidden">
-                        <LLMKeySettings />
-                    </TabsContent>
-                )}
             </Tabs>
         </main >
     )
